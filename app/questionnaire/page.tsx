@@ -11,8 +11,11 @@ import {
 } from "@/lib/questionnaire-schema";
 import type { QuestionnaireAnswers } from "@/lib/types";
 import { QuestionField } from "./components/QuestionField";
+import { ProgressBar } from "./components/ProgressBar";
 
 const TOTAL_STEPS = questionnaireSteps.length;
+// +1 = el resumen final cuenta como el último tramo de la barra de progreso.
+const TOTAL_STOPS = TOTAL_STEPS + 1;
 
 export default function QuestionnairePage() {
   const router = useRouter();
@@ -23,6 +26,7 @@ export default function QuestionnairePage() {
   const isSummary = stepIndex === TOTAL_STEPS;
   const currentStep = isSummary ? null : questionnaireSteps[stepIndex];
   const visibleFields = currentStep ? getVisibleFields(currentStep, answers) : [];
+  const progressPercent = (Math.min(stepIndex, TOTAL_STOPS - 1) / (TOTAL_STOPS - 1)) * 100;
 
   function handleChange(fieldId: keyof QuestionnaireAnswers, value: string) {
     // Los campos "choice" guardan valores que en QuestionnaireAnswers son tipos
@@ -66,6 +70,8 @@ export default function QuestionnairePage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center bg-zinc-50 px-6 py-16 dark:bg-black">
+      <ProgressBar percent={progressPercent} />
+
       <main className="flex w-full max-w-xl flex-col gap-8">
         {!isSummary && (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
