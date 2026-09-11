@@ -1,8 +1,8 @@
 // Definición del cuestionario guiado (Paso 1) como datos, no como JSX.
 //
 // La idea: cada pregunta se declara una sola vez acá (label, tipo de input,
-// si es obligatoria, si depende de una rama B2B/B2C, etc.) y tanto el wizard
-// como el resumen final leen de esta misma fuente. Así evitamos duplicar la
+// si es obligatoria, ejemplo, ayuda adicional, etc.) y tanto el wizard como
+// el resumen final leen de esta misma fuente. Así evitamos duplicar la
 // lógica de "qué se ve" y "qué es obligatorio" en varios componentes.
 
 import type { QuestionnaireAnswers } from "./types";
@@ -20,7 +20,14 @@ export interface QuestionFieldDef {
   /** Texto fijo, o una función si el enunciado cambia según respuestas previas. */
   label: string | ((answers: Partial<QuestionnaireAnswers>) => string);
   type: FieldType;
+  /** Ejemplo de respuesta, visible dentro del input mientras está vacío. Solo aplica a "text"/"textarea". */
   placeholder?: string;
+  /**
+   * Ayuda adicional (por qué preguntamos esto, cómo interpretarlo, o un
+   * ejemplo cuando el campo no tiene placeholder por ser "choice").
+   * Se muestra detrás de un ícono informativo, no ocupa espacio fijo.
+   */
+  helpText?: string;
   /** Solo para type "choice". */
   options?: QuestionOption[];
   /** Booleano fijo, o condicional (ej: obligatorio solo si es B2B). */
@@ -38,20 +45,14 @@ export interface QuestionnaireStepDef {
 
 export const questionnaireSteps: QuestionnaireStepDef[] = [
   {
-    id: "product",
-    title: "Tu producto o servicio",
+    id: "goal-and-offering",
+    title: "Tu objetivo y tu producto",
     fields: [
-      {
-        id: "offering",
-        type: "text",
-        label: "¿Qué producto o servicio ofrecés?",
-        placeholder: "Ej: contabilidad para pequeñas empresas",
-        required: true,
-      },
       {
         id: "mainGoal",
         type: "choice",
-        label: "¿Qué querés conseguir principalmente con este producto o servicio?",
+        label: "¿Qué querés lograr principalmente con este producto o servicio?",
+        helpText: "Ej: conseguir mis primeros clientes durante el próximo mes.",
         required: true,
         options: [
           { value: "first_customers", label: "Conseguir mis primeros clientes" },
@@ -64,99 +65,97 @@ export const questionnaireSteps: QuestionnaireStepDef[] = [
         ],
       },
       {
+        id: "offering",
+        type: "text",
+        label: "¿Qué producto o servicio ofrecés?",
+        placeholder: "Ej: diseño de sitios web para pequeñas empresas",
+        required: true,
+      },
+      {
         id: "problem",
         type: "textarea",
-        label: "¿Qué problema o necesidad resuelve?",
+        label: "¿Qué problema concreto resolvés o qué necesidad cubre tu producto o servicio?",
+        placeholder: "Ej: los clubes tardan mucho tiempo en organizar las inscripciones y pagos de sus torneos",
+        required: true,
+      },
+    ],
+  },
+  {
+    id: "ideal-customer",
+    title: "Tu cliente ideal",
+    fields: [
+      {
+        id: "idealCustomerDescription",
+        type: "textarea",
+        label: "¿Quién es el cliente ideal para tu producto o servicio? Describilo con tus palabras.",
+        placeholder:
+          "Ej: dueños de clubes de pádel que organizan torneos y hoy gestionan las inscripciones por WhatsApp",
+        helpText: "Contá cómo es hoy, qué hace, cómo resuelve este problema actualmente.",
+        required: false,
+      },
+      {
+        id: "businessCategoryToTarget",
+        type: "text",
+        label: "¿Qué tipo de negocios, profesionales o personas querés encontrar para ofrecerles tu producto?",
+        placeholder: "Ej: clubes de pádel, organizadores de torneos, complejos deportivos",
+        helpText:
+          "A diferencia de la pregunta anterior, esto es una categoría corta: nos sirve para poder buscar y agrupar a ese tipo de cliente más adelante (por ejemplo, en Google Maps).",
         required: true,
       },
       {
         id: "businessType",
         type: "choice",
-        label: "¿Le vendés a otras empresas (B2B) o a consumidores finales (B2C)?",
+        label: "¿A quién le vendés?",
         required: true,
         options: [
+          { value: "b2c", label: "Personas (B2C)" },
           { value: "b2b", label: "Empresas (B2B)" },
-          { value: "b2c", label: "Consumidores finales (B2C)" },
         ],
-      },
-      {
-        id: "priceRange",
-        type: "text",
-        label: "¿Cuál es el precio o ticket promedio? (opcional)",
-        placeholder: "Ej: $50.000 por mes",
-        required: false,
       },
     ],
   },
   {
-    id: "customer-status",
-    title: "Tu cliente hoy",
+    id: "current-status",
+    title: "Tu situación actual",
     fields: [
       {
         id: "hasCustomersToday",
         type: "choice",
-        label: "¿Ya le vendés a alguien hoy?",
+        label: "¿Ya tenés clientes actualmente?",
         required: true,
         options: [
-          { value: "yes", label: "Sí" },
-          { value: "no", label: "No" },
-          { value: "unsure", label: "No estoy seguro" },
+          { value: "none", label: "No, todavía no" },
+          { value: "some", label: "Sí, algunos" },
+          { value: "stable", label: "Sí, tengo una base de clientes estable" },
         ],
       },
       {
-        id: "idealCustomerDescription",
-        type: "textarea",
-        label: (answers) =>
-          answers.hasCustomersToday === "yes"
-            ? "Describí brevemente a tu cliente típico actual"
-            : "¿A quién te imaginás vendiéndole?",
-        required: false,
-      },
-    ],
-  },
-  {
-    id: "customer-profile",
-    title: "Perfil de cliente ideal",
-    fields: [
-      {
-        id: "businessCategoryToTarget",
-        type: "text",
-        label: "¿Qué tipo de negocio sería tu cliente ideal?",
-        placeholder: "Ej: gimnasios, estudios contables",
-        required: (answers) => answers.businessType === "b2b",
-        visibleIf: (answers) => answers.businessType === "b2b",
-      },
-      {
-        id: "idealCustomerTraits",
-        type: "textarea",
-        label: "¿Qué características tiene tu cliente ideal?",
-        placeholder: "Edad, situación, intereses...",
-        required: false,
-        visibleIf: (answers) => answers.businessType === "b2c",
-      },
-    ],
-  },
-  {
-    id: "market",
-    title: "Zona de adquisición",
-    fields: [
-      {
         id: "targetArea",
         type: "text",
-        label: "¿Dónde querés conseguir nuevos clientes?",
-        placeholder: "Ej: Ciudad de Buenos Aires, zona norte del GBA",
+        label: "¿En qué zona querés conseguir clientes?",
+        placeholder: "Ej: Ciudad de Buenos Aires",
+        helpText:
+          "Puede ser una ciudad, una región o un país (ej: \"Buenos Aires y alrededores\", \"Argentina\", \"Estados Unidos\"). Contanos un lugar geográfico, no un canal — no \"Instagram\" o \"redes sociales\".",
         required: true,
       },
     ],
   },
   {
-    id: "competition",
-    title: "Competencia",
+    id: "context",
+    title: "Competencia y precio",
     fields: [
       {
         id: "knownCompetitors",
         type: "textarea",
-        label: "¿Conocés competidores directos? Nombralos si querés",
+        label: "¿Conocés productos o servicios similares que tus clientes podrían elegir en lugar del tuyo?",
+        placeholder: "Ej: Canva, Wix y agencias de diseño web (o \"no conozco competidores directos\")",
+        required: false,
+      },
+      {
+        id: "priceRange",
+        type: "text",
+        label: "¿Cuánto cobrás o cuánto pensás cobrar por tu producto o servicio?",
+        placeholder: "Ej: USD 300 por sitio web (o \"todavía no definí el precio\")",
         required: false,
       },
     ],
