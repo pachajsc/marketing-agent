@@ -33,11 +33,11 @@ const HAS_CUSTOMERS_LABEL: Record<QuestionnaireAnswers["hasCustomersToday"], str
 function buildPrompt(answers: QuestionnaireAnswers): string {
   const lines = [
     `Ofrece: ${answers.offering.trim()}`,
-    `Objetivo principal: ${MAIN_GOAL_LABEL[answers.mainGoal]}`,
+    `Objetivo principal (mainGoal="${answers.mainGoal}"): ${MAIN_GOAL_LABEL[answers.mainGoal]}`,
     `Problema o necesidad que resuelve: ${answers.problem.trim()}`,
-    `Vende a: ${answers.businessType === "b2b" ? "empresas (B2B)" : "consumidores finales (B2C)"}`,
+    `Vende a (businessType="${answers.businessType}"): ${answers.businessType === "b2b" ? "empresas (B2B)" : "consumidores finales (B2C)"}`,
     answers.priceRange?.trim() ? `Precio o ticket promedio: ${answers.priceRange.trim()}` : undefined,
-    `Situación actual: ${HAS_CUSTOMERS_LABEL[answers.hasCustomersToday]}`,
+    `Situación actual (hasCustomersToday="${answers.hasCustomersToday}"): ${HAS_CUSTOMERS_LABEL[answers.hasCustomersToday]}`,
     answers.idealCustomerDescription?.trim()
       ? `Descripción de su cliente ideal (en sus propias palabras): ${answers.idealCustomerDescription.trim()}`
       : undefined,
@@ -60,12 +60,24 @@ Cada afirmación que generás es un Claim con un campo "source":
 - "inference": una conclusión razonable derivada de uno o más "fact" (usá "basedOn" para indicar de cuáles).
 - "assumption": cualquier otra cosa que no esté respaldada por el cuestionario — incluye tanto hipótesis o recomendaciones tuyas como cualquier benchmark, promedio o cifra de mercado que no haya dado el usuario.
 
+Fidelidad a los datos de opción cerrada: varios campos del cuestionario vienen de una opción cerrada (elegida entre valores fijos, no texto libre) y en el prompt aparecen con su valor real entre comillas junto al nombre del campo — por ejemplo, hasCustomersToday="none". Ese valor entre comillas es la fuente de verdad exacta: nunca lo invertís, reinterpretás ni "suavizás" al escribir un fact. hasCustomersToday="none" significa que hoy no tiene ningún cliente (nunca lo describas como si tuviera algunos o una base estable); hasCustomersToday="some" significa que tiene algunos clientes; hasCustomersToday="stable" significa que tiene una base de clientes estable. Lo mismo aplica a mainGoal y businessType: citá el significado exacto de la opción elegida, no una versión invertida o aproximada.
+
 Regla estricta sobre números: nunca inventes cifras específicas (volumen de clientes potenciales, frecuencia, tasas de conversión, tickets, tamaño de mercado, edad del decisor, presupuesto, comisiones, cantidad de competidores, etc.) ni características del negocio que el usuario no haya dado. Si una recomendación necesita un número que no tenés:
 1) usá un rango amplio marcado explícitamente como hipótesis a validar, o
 2) proponé un experimento concreto para conseguir ese dato (ej: "contactá a 10 clubes y medí la tasa de respuesta antes de proyectar un volumen"),
 en vez de inventar un benchmark. En ambos casos, el Claim va con source: "assumption" y confidence: "low".
 
 Si dos respuestas del usuario son inconsistentes entre sí, no la resuelvas ni la corrijas como si conocieras la respuesta correcta: generá un Claim que declare la inconsistencia explícitamente (source: "assumption") para que el usuario la revise. Ejemplo — incorrecto: "El negocio es en realidad B2B." Preferido: "Existe una aparente inconsistencia entre el modelo de negocio declarado como B2C y el cliente ideal descrito, que suena a B2B."
+
+Además de esas 5 secciones, tenés que completar "nextBestAction": un objeto único (no una lista) que responde "¿cuál es la acción más importante que debería hacer este usuario ahora para avanzar?". Tiene 4 campos de contenido:
+- "action": la acción concreta y ejecutable — algo que el usuario pueda hacer, no un objetivo abstracto.
+- "goal": qué se busca aprender, validar o conseguir al realizar esa acción.
+- "metricToWatch": qué señal habría que observar como resultado de la acción (ej: "cuántos clubes responden al mensaje"). Nunca un número, porcentaje, tasa o benchmark inventado — describe qué mirar, no cuánto esperar. Se aplica la misma regla estricta sobre números de más arriba.
+- "reason": por qué esta acción es la prioridad ahora, y no otra.
+
+"nextBestAction" tiene que ser coherente con "initialStrategy": no inventes una estrategia distinta ni una acción que la contradiga. Idealmente, destilá o priorizá el primer paso relevante de "initialStrategy" en una recomendación única y accionable — no un paso nuevo que no se desprenda de ella.
+
+"nextBestAction.source" únicamente puede ser "inference" o "assumption" — nunca "fact": una recomendación de acción nunca es algo que el usuario haya dicho textualmente, siempre es algo que vos derivás ("inference") o proponés como hipótesis ("assumption"). "confidence" y "basedOn" en "nextBestAction" significan exactamente lo mismo que en cualquier otro Claim.
 
 El resultado tiene que seguir siendo una estrategia accionable, no una lista de advertencias: usá esta disciplina para ser honesto sobre qué es dato y qué no, sin dejar de proponer pasos concretos.`;
 
