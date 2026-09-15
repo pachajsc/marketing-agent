@@ -10,6 +10,7 @@ import type {
   NextBestAction,
   QuestionnaireAnswers,
 } from "@/lib/types";
+import { ProspectsSection } from "./components/ProspectsSection";
 
 /**
  * Antes: esta página llamaba a runMarketingAgent directamente (cálculo
@@ -182,6 +183,12 @@ export default function ReportPage() {
   // decide el estado real. Esto evita el hydration mismatch: server y
   // cliente arrancan mostrando exactamente lo mismo.
   const [state, setState] = useState<ReportState>({ status: "loading" });
+  // Independiente de ReportState a propósito: Prospecting no depende de que
+  // el MarketingStrategy haya cargado ni de que haya tenido éxito, solo de
+  // tener las respuestas del cuestionario (category/area).
+  const [questionnaireAnswers, setQuestionnaireAnswers] = useState<QuestionnaireAnswers | null>(
+    null
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -197,6 +204,7 @@ export default function ReportPage() {
         if (!cancelled) setState({ status: "no-answers" });
         return;
       }
+      if (!cancelled) setQuestionnaireAnswers(answers);
 
       try {
         const response = await fetch("/api/marketing-strategy", {
@@ -284,6 +292,13 @@ export default function ReportPage() {
             </Link>
             .
           </p>
+        )}
+
+        {questionnaireAnswers && (
+          <ProspectsSection
+            category={questionnaireAnswers.businessCategoryToTarget}
+            area={questionnaireAnswers.targetArea}
+          />
         )}
       </main>
     </div>
