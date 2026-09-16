@@ -32,14 +32,24 @@ const DEFAULT_PAGE_SIZE = 20;
 //   nationalPhoneNumber    -> Prospect.phone
 //   websiteUri             -> Prospect.website
 //   rating                 -> Prospect.rating
+//   userRatingCount         -> Prospect.userRatingCount
+//   primaryType             -> Prospect.primaryType
+//   types                   -> Prospect.types
 //   googleMapsUri           -> Prospect.mapsUrl
 //   businessStatus           -> filtrado interno (excluir negocios cerrados)
+//
+// primaryType/types/userRatingCount están en el mismo tier ("Pro") que los
+// campos ya pedidos (displayName, formattedAddress, etc.), así que no
+// cambian el costo por request — ver tabla de tiers de Places API (New).
 const FIELD_MASK = [
   "places.displayName",
   "places.formattedAddress",
   "places.nationalPhoneNumber",
   "places.websiteUri",
   "places.rating",
+  "places.userRatingCount",
+  "places.primaryType",
+  "places.types",
   "places.googleMapsUri",
   "places.businessStatus",
 ].join(",");
@@ -79,6 +89,9 @@ const GooglePlaceSchema = z.object({
   nationalPhoneNumber: z.string().optional(),
   websiteUri: z.string().optional(),
   rating: z.number().optional(),
+  userRatingCount: z.number().optional(),
+  primaryType: z.string().optional(),
+  types: z.array(z.string()).optional(),
   googleMapsUri: z.string().optional(),
   businessStatus: z.string().optional(),
 });
@@ -105,8 +118,9 @@ function isOperational(place: GooglePlace): boolean {
  * al place le falta algún campo obligatorio de Prospect (name, address o
  * mapsUrl) — ese resultado no es prospectable y se descarta, en vez de
  * inventar un valor para completarlo. Los campos opcionales de Prospect
- * (phone, website, rating) quedan `undefined` tal cual si Google no los
- * devolvió, nunca se completan con datos inventados.
+ * (phone, website, rating, primaryType, types, userRatingCount) quedan
+ * `undefined` tal cual si Google no los devolvió, nunca se completan con
+ * datos inventados.
  */
 function toProspect(place: GooglePlace): Prospect | null {
   const name = place.displayName?.text?.trim();
@@ -122,6 +136,9 @@ function toProspect(place: GooglePlace): Prospect | null {
     phone: place.nationalPhoneNumber?.trim() || undefined,
     website: place.websiteUri?.trim() || undefined,
     rating: place.rating,
+    primaryType: place.primaryType?.trim() || undefined,
+    types: place.types,
+    userRatingCount: place.userRatingCount,
   };
 }
 

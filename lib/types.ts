@@ -146,7 +146,15 @@ export const MarketingStrategySchema = z.object({
 
 export type MarketingStrategy = z.infer<typeof MarketingStrategySchema>;
 
-/** Un negocio encontrado como prospecto vía Google Maps (Paso 3). */
+/**
+ * Un negocio encontrado como prospecto vía Google Maps (Paso 3).
+ *
+ * `primaryType`, `types` y `userRatingCount` son enriquecimiento agregado
+ * para Qualification (Paso 4): datos crudos que Google Places devuelve tal
+ * cual, sin interpretar. Todavía no son fact/inference/assumption ni
+ * alimentan ningún score o veredicto de fit — eso es responsabilidad de la
+ * etapa de Qualification, no de este tipo.
+ */
 export interface Prospect {
   name: string;
   address: string;
@@ -154,4 +162,10 @@ export interface Prospect {
   website?: string;
   rating?: number;
   mapsUrl: string;
+  /** Tipo principal del lugar según la taxonomía de Google Places (ej: "gym", "restaurant"). */
+  primaryType?: string;
+  /** Todos los tipos que Google le asigna al lugar, en el mismo orden que los devuelve. */
+  types?: string[];
+  /** Cantidad de reseñas detrás de `rating`. Sin esto, un rating de 5.0 con 2 reseñas y uno con 400 son indistinguibles. */
+  userRatingCount?: number;
 }
