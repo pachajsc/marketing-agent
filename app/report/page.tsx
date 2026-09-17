@@ -296,8 +296,8 @@ export default function ReportPage() {
 
         {questionnaireAnswers && (
           <ProspectsSection
-            category={questionnaireAnswers.businessCategoryToTarget}
-            area={questionnaireAnswers.targetArea}
+            answers={questionnaireAnswers}
+            strategy={state.status === "ready" ? state.strategy : undefined}
           />
         )}
       </main>

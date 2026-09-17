@@ -1,20 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import type { Prospect } from "@/lib/types";
+import type { MarketingStrategy, Prospect, QuestionnaireAnswers } from "@/lib/types";
 
 /**
  * Sección de prospecting dentro de /report. Deliberadamente independiente
- * del estado del MarketingStrategy de la página (ReportState): no depende
- * de que la estrategia haya cargado ni de que haya tenido éxito — solo
- * necesita category/area, que ya están en QuestionnaireAnswers. Mantiene la
- * separación arquitectónica acordada entre Prospecting y MarketingAgent
- * también en la UI: ni el fetch, ni el estado, ni los componentes se
- * comparten.
+ * del ESTADO del MarketingStrategy de la página (ReportState): no depende
+ * de que la estrategia haya cargado ni de que haya tenido éxito, por eso
+ * `strategy` es opcional acá — se la pasamos al ProspectingAgent como
+ * contexto adicional cuando ya está lista, pero la búsqueda funciona igual
+ * sin ella (el ProspectingAgent solo necesita category/area, que ya están
+ * en `answers`). Mantiene la separación arquitectónica acordada entre
+ * Prospecting y MarketingAgent también en la UI: ni el fetch, ni el estado,
+ * ni los componentes se comparten.
  *
  * La búsqueda es manual (botón), no automática al entrar a la página: cada
- * búsqueda es un request real y facturable a Google Places, así que no
- * conviene dispararla sola en cada carga/recarga de /report.
+ * búsqueda dispara al ProspectingAgent (Claude + Google Places), ambos
+ * facturables, así que no conviene dispararla sola en cada carga/recarga de
+ * /report.
  */
 type ProspectsState =
   | { status: "idle" }
@@ -24,13 +27,15 @@ type ProspectsState =
   | { status: "ready"; prospects: Prospect[] };
 
 interface ProspectsSectionProps {
-  /** businessCategoryToTarget del cuestionario. Solo existe si businessType === "b2b". */
-  category?: string;
-  area: string;
+  answers: QuestionnaireAnswers;
+  /** MarketingStrategy ya generada, si terminó de cargar con éxito. Contexto opcional para el ProspectingAgent. */
+  strategy?: MarketingStrategy;
 }
 
-export function ProspectsSection({ category, area }: ProspectsSectionProps) {
+export function ProspectsSection({ answers, strategy }: ProspectsSectionProps) {
   const [state, setState] = useState<ProspectsState>({ status: "idle" });
+  const category = answers.businessCategoryToTarget;
+  const area = answers.targetArea;
 
   async function handleSearch() {
     if (!category) return;
@@ -40,7 +45,7 @@ export function ProspectsSection({ category, area }: ProspectsSectionProps) {
       const response = await fetch("/api/prospects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category, area }),
+        body: JSON.stringify({ answers, strategy }),
       });
 
       if (!response.ok) {

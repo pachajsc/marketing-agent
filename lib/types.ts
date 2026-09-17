@@ -146,12 +146,32 @@ export const MarketingStrategySchema = z.object({
 
 export type MarketingStrategy = z.infer<typeof MarketingStrategySchema>;
 
-/** Un negocio encontrado como prospecto vía Google Maps (Paso 3). */
-export interface Prospect {
-  name: string;
-  address: string;
-  phone?: string;
-  website?: string;
-  rating?: number;
-  mapsUrl: string;
-}
+/**
+ * Un negocio encontrado como prospecto vía Google Maps (Paso 3).
+ *
+ * Schema Zod (no interface) desde el Paso 4: el ProspectingAgent necesita
+ * validar esta forma como Structured Output de Claude, mismo mecanismo que
+ * MarketingStrategySchema. Los campos y su opcionalidad no cambian respecto
+ * al contrato anterior — solo se agrega la capa de validación runtime.
+ */
+export const ProspectSchema = z.object({
+  name: z.string(),
+  address: z.string(),
+  phone: z.string().optional(),
+  website: z.string().optional(),
+  rating: z.number().optional(),
+  mapsUrl: z.string(),
+});
+export type Prospect = z.infer<typeof ProspectSchema>;
+
+/**
+ * Resultado del ProspectingAgent (Paso 4): una lista de Prospect reales.
+ * "reales" no es una convención de nombre — es una garantía arquitectónica:
+ * cada Prospect de esta lista tiene que provenir del tool_result de
+ * search_prospects (y, en definitiva, de Google Places), nunca de texto
+ * libre inventado por el modelo. Ver lib/agent/prospecting-agent.ts.
+ */
+export const ProspectingResultSchema = z.object({
+  prospects: z.array(ProspectSchema),
+});
+export type ProspectingResult = z.infer<typeof ProspectingResultSchema>;
