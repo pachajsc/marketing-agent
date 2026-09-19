@@ -3,16 +3,16 @@
 // Deliberadamente framework-agnostic: no importa nada de Next.js (ni
 // "server-only", ni Request/Response, ni next/*), solo usa fetch y
 // process.env. Eso lo hace portable — hoy lo llama únicamente
-// app/api/prospects/route.ts (que sí es server-side, así que la API key
-// nunca sale de ahí), pero el día de mañana esta misma función podría
-// exponerse como tool de un MCP server sin reescribirla (ver la
-// arquitectura acordada: MCP no se implementa todavía, pero esta función
-// ya queda con esa forma).
+// lib/tools/search-prospects-tool.ts (a través del Tool), pero el día de
+// mañana esta misma función podría exponerse como tool de un MCP server sin
+// reescribirla. Vive en lib/integrations/ (no en lib/prospecting/): es la
+// integración real contra un servicio externo, separada de lib/tools/ (la
+// capability que el Agent invoca) — ver docs/agent-roadmap.md, Fase 4.
 //
 // Referencia: https://developers.google.com/maps/documentation/places/web-service/text-search
 import { z } from "zod";
 import type { Prospect } from "@/lib/types";
-import type { SearchProspectsInput } from "./types";
+import type { SearchProspectsInput } from "@/lib/tools/search-prospects-types";
 
 const TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText";
 

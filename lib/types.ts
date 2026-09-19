@@ -149,11 +149,15 @@ export type MarketingStrategy = z.infer<typeof MarketingStrategySchema>;
 /**
  * Un negocio encontrado como prospecto vía Google Maps (Paso 3).
  *
-<<<<<<< HEAD
  * Schema Zod (no interface) desde el Paso 4: el ProspectingAgent necesita
  * validar esta forma como Structured Output de Claude, mismo mecanismo que
- * MarketingStrategySchema. Los campos y su opcionalidad no cambian respecto
- * al contrato anterior — solo se agrega la capa de validación runtime.
+ * MarketingStrategySchema.
+ *
+ * `primaryType`, `types` y `userRatingCount` son enriquecimiento agregado
+ * para Qualification (Paso 4): datos crudos que Google Places devuelve tal
+ * cual, sin interpretar. Todavía no son fact/inference/assumption ni
+ * alimentan ningún score o veredicto de fit — eso es responsabilidad de la
+ * etapa de Qualification, no de este tipo.
  */
 export const ProspectSchema = z.object({
   name: z.string(),
@@ -162,6 +166,12 @@ export const ProspectSchema = z.object({
   website: z.string().optional(),
   rating: z.number().optional(),
   mapsUrl: z.string(),
+  /** Tipo principal del lugar según la taxonomía de Google Places (ej: "gym", "restaurant"). */
+  primaryType: z.string().optional(),
+  /** Todos los tipos que Google le asigna al lugar, en el mismo orden que los devuelve. */
+  types: z.array(z.string()).optional(),
+  /** Cantidad de reseñas detrás de `rating`. Sin esto, un rating de 5.0 con 2 reseñas y uno con 400 son indistinguibles. */
+  userRatingCount: z.number().optional(),
 });
 export type Prospect = z.infer<typeof ProspectSchema>;
 
@@ -176,25 +186,65 @@ export const ProspectingResultSchema = z.object({
   prospects: z.array(ProspectSchema),
 });
 export type ProspectingResult = z.infer<typeof ProspectingResultSchema>;
-=======
- * `primaryType`, `types` y `userRatingCount` son enriquecimiento agregado
- * para Qualification (Paso 4): datos crudos que Google Places devuelve tal
- * cual, sin interpretar. Todavía no son fact/inference/assumption ni
- * alimentan ningún score o veredicto de fit — eso es responsabilidad de la
- * etapa de Qualification, no de este tipo.
+
+/**
+ * En qué campo de QuestionnaireAnswers (o derivado) se apoya una búsqueda
+ * propuesta por el ProspectingAgent (Fase 3). Enum cerrado a propósito: si
+ * Claude propone un basedOnField fuera de esta lista, el parseo de Zod ya lo
+ * rechaza — no puede inventar una fuente nueva.
+ *
+ * - "businessCategoryToTarget+targetArea": la búsqueda principal, literal,
+ *   la misma que hoy ejecuta el Agent siempre que ese dato exista.
+ * - "idealCustomerDescription": un ángulo adicional que Claude interpretó a
+ *   partir de la descripción libre del cliente ideal. Por ser interpretación
+ *   de texto libre, nunca puede fundamentar una búsqueda "fact" (ver
+ *   groundProspectingSearch en prospecting-agent.ts).
+ *
+ * Deliberadamente NO incluye knownCompetitors: un competidor es un rival, no
+ * un cliente potencial — usarlo como base de búsqueda de prospectos
+ * confundiría el propósito del dato.
  */
-export interface Prospect {
-  name: string;
-  address: string;
-  phone?: string;
-  website?: string;
-  rating?: number;
-  mapsUrl: string;
-  /** Tipo principal del lugar según la taxonomía de Google Places (ej: "gym", "restaurant"). */
-  primaryType?: string;
-  /** Todos los tipos que Google le asigna al lugar, en el mismo orden que los devuelve. */
-  types?: string[];
-  /** Cantidad de reseñas detrás de `rating`. Sin esto, un rating de 5.0 con 2 reseñas y uno con 400 son indistinguibles. */
-  userRatingCount?: number;
-}
->>>>>>> 5d9cecf233d0ef2fe0a2830bda53fb7b230f761a
+export const ProspectingSearchBasedOnSchema = z.enum([
+  "businessCategoryToTarget+targetArea",
+  "idealCustomerDescription",
+]);
+export type ProspectingSearchBasedOn = z.infer<typeof ProspectingSearchBasedOnSchema>;
+
+/**
+ * Una búsqueda propuesta por el ProspectingAgent dentro de un
+ * ProspectingPlan. `category`/`area` acá son la propuesta de Claude — el
+ * código nunca las ejecuta tal cual: `groundProspectingSearch` en
+ * prospecting-agent.ts las recalcula desde `answers` según `basedOnField`
+ * antes de que puedan llegar a Google Places (mismo principio de grounding
+ * de entrada que ya regía la Fase 1, ahora aplicado a un plan en vez de a un
+ * único tool_use).
+ */
+export const ProspectingSearchSchema = z.object({
+  category: z.string().min(1),
+  area: z.string().min(1),
+  /** Tope de resultados para esta búsqueda en particular. Nunca inventado sin motivo (ver SYSTEM_PROMPT). */
+  limit: z.number().int().positive().max(20).optional(),
+  /** Procedencia de esta búsqueda puntual — mismo vocabulario que Claim. */
+  source: ClaimSourceSchema,
+  /** En qué dato de QuestionnaireAnswers se apoya. */
+  basedOnField: ProspectingSearchBasedOnSchema,
+  /** Por qué esta búsqueda es relevante para este negocio en particular. */
+  rationale: z.string().min(1),
+});
+export type ProspectingSearch = z.infer<typeof ProspectingSearchSchema>;
+
+/**
+ * Estrategia de prospección propuesta por el ProspectingAgent (Fase 3):
+ * reemplaza la decisión trivial "¿llamo a search_prospects o no?" por
+ * "¿qué búsquedas tienen sentido dado este negocio?". Sigue sin poder
+ * ejecutarse directamente: `runProspectingAgent` valida cada `search` con
+ * `groundProspectingSearch` y, según la política de ejecución vigente (solo
+ * `source: "fact"` se ejecuta automáticamente — ver prospecting-agent.ts),
+ * decide cuáles llegan realmente a Google Places.
+ */
+export const ProspectingPlanSchema = z.object({
+  searches: z.array(ProspectingSearchSchema),
+  /** Resumen del criterio general detrás del plan completo. */
+  rationale: z.string().min(1),
+});
+export type ProspectingPlan = z.infer<typeof ProspectingPlanSchema>;

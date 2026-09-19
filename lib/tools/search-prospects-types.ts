@@ -1,5 +1,5 @@
-// Contrato de la primera capability de prospecting: buscar negocios reales
-// que matcheen un nicho + zona, vía Google Places API (New).
+// Contrato del Tool search_prospects: buscar negocios reales que matcheen
+// un nicho + zona, vía Google Places API (New).
 //
 // `Prospect` (la forma de salida) ya vive en lib/types.ts — es la fuente de
 // verdad del contrato de datos del proyecto (ver AGENTS.md) — así que acá
@@ -7,9 +7,10 @@
 //
 // A diferencia de QuestionnaireAnswers (interface sin schema, decisión
 // deliberada porque ese input ya se valida en el wizard antes de llegar al
-// servidor — ver isStepValid), este input llega desde afuera sin garantía
-// previa: por eso el schema Zod es la fuente de verdad acá, y el tipo se
-// deriva con z.infer, mismo patrón que MarketingStrategySchema.
+// servidor — ver isStepValid), este input llega desde afuera (del modelo, vía
+// tool_use) sin garantía previa: por eso el schema Zod es la fuente de
+// verdad acá, y el tipo se deriva con z.infer, mismo patrón que
+// MarketingStrategySchema.
 import { z } from "zod";
 
 export const SearchProspectsInputSchema = z.object({
