@@ -1,6 +1,6 @@
 # AI Marketing Agent — roadmap de arquitectura agentic
 
-Este documento registra, fase por fase, qué se construyó realmente en el roadmap hacia una arquitectura agentic con Tools y MCP. Solo documenta lo que está implementado y verificado (`tsc`, `eslint`, tests) al momento de escribirse — no es una aspiración ni un plan. Cubre las Fases 0 a 8 del roadmap; la Fase 9 (aprobación, dashboard) todavía no está iniciada.
+Este documento registra, fase por fase, qué se construyó realmente en el roadmap hacia una arquitectura agentic con Tools y MCP. Solo documenta lo que está implementado y verificado (`tsc`, `eslint`, tests) al momento de escribirse — no es una aspiración ni un plan. Cubre las Fases 0 a 15 del roadmap: las Fases 0–9 construyen las capacidades (estrategia, prospección con MCP, calificación, mensajes y revisión humana) y las Fases 10–15 las convierten en un MVP de producto.
 
 ## Fase 0 — Auditoría
 
@@ -143,13 +143,44 @@ orden:    score desc → más canales de contacto (phone/website) → orden orig
 - contiene números (en cifras) que no están en los datos, o cantidades escritas en palabras ("en dos minutos");
 - contiene porcentajes, garantías, urgencia, "probabilidad" o menciones al score;
 - le atribuye al prospecto necesidades, búsquedas o problemas ("vi que necesitan", "están buscando", "tienen problemas");
-- menciona herramientas o procesos que el producto "reemplazaría" (planillas, papel, mensajes sueltos, grupos de WhatsApp, "a mano"), afirma tracción del producto ("estamos sumando clubes", "ya lo usan") o dice haber visitado el sitio/redes/reseñas del prospecto.
+- menciona herramientas o procesos que el producto "reemplazaría" (planillas, papel, mensajes sueltos, grupos de WhatsApp, "a mano"), afirma tracción del producto ("estamos sumando clubes", "ya lo usan") o dice haber visitado el sitio/redes/reseñas del prospecto;
+- promete integraciones del producto con lo que tiene el prospecto ("se puede sumar a su web") o afirma la ubicación del remitente ("desde acá", "acá en…"). Estos dos se agregaron en la Fase 15.
 
 **Provenance:** la procedencia de cada claim la deriva el código a partir de lo citado (`fact` si todo lo citado es hecho, `inference` si cita alguna inferencia; nunca `assumption`), no la declara Claude. La UI muestra cada claim con su badge y los ids en los que se basa.
 
 **Validación real (caso pádel, Buenos Aires; Claude + MCP + Google Places reales):** se generaron mensajes para 3 prospectos reales (AVANT CLUB Gym & Padel 100/alta, Quality Padel Club y Pilates 90/alta, Pasaje Del Sol 70/media) y uno más desde la UI (First Pádel Center), revisando cada afirmación contra su fuente. Las primeras rondas detectaron afirmaciones sin respaldo suficiente que el validador todavía no cubría ("sin planillas ni mensajes sueltos" —un supuesto de la estrategia que entraba vía una inferencia—, "estamos sumando clubes", "en dos minutos", "entré al sitio"); cada caso se corrigió en el prompt y en el validador, con un test de regresión, y se regeneró hasta que todas las afirmaciones quedaron respaldadas.
 
-**Fuera de alcance (Fase 9, no implementada):** aprobación/rechazo persistente, edición persistente, historial, estados de campaña, CRM, dashboard, tracking y envío.
+**Fuera de alcance de esta fase:** revisión y aprobación (llegan en la Fase 9), persistencia, historial, estados de campaña, CRM, dashboard, tracking y envío.
+
+## Fase 9 — Revisión humana del mensaje — IMPLEMENTED
+
+**Qué resuelve:** un borrador de la IA no se puede usar sin un paso humano explícito. Flujo: Generar → Revisar / Editar → Aprobar o Rechazar → Copiar (solo aprobado).
+
+**Implementación:** `lib/review/message-review.ts`, un reductor puro (sin React, red, Anthropic ni persistencia) que la UI usa desde `SalesMessagePanel`. Modelo: `original` (el `SalesMessage` de Claude, nunca se modifica), `editedText` (o `null`), `decision` y `approvedText` (congelado al aprobar). El texto visible se deriva (`editedText ?? original.message`). Estados visibles: Borrador IA, Editado, Aprobado, Rechazado.
+
+**Reglas:** no se aprueba un mensaje vacío (reductor + botón); copiar solo existe en Aprobado; con una edición pendiente "Generar de nuevo" queda bloqueado (primero se restaura el original, nada se descarta en silencio); un error al generar no pierde la revisión existente; las afirmaciones cuyo fragmento ya no está en el texto se marcan "(modificado por vos)" y lo editado se muestra como no verificado. Solo Generar/Regenerar llaman a `/api/sales-message` (1 llamada a Claude); editar, restaurar, aprobar, rechazar, reabrir y copiar no hacen ninguna llamada de red (cubierto por tests que espían `fetch`). Sin backend nuevo: la revisión vive en memoria.
+
+**Validación en Chrome:** pasaron Generar → editar → aprobar → copiar (texto del portapapeles verificado) y Generar → rechazar → reabrir, con 1 POST por generación y 0 en el resto. Quedaron sin validar en el navegador, por falta de memoria en el equipo, "Restaurar original → Generar de nuevo" y la regeneración; esas transiciones están cubiertas por los tests del reductor.
+
+## Fases 10–15 — MVP: AI Prospecting Agent — IMPLEMENTED
+
+Objetivo: que una persona sin conocimientos técnicos pueda ir de "qué vendo, a quién y dónde" a "mensaje aprobado y copiado para un prospecto real", reutilizando todo lo anterior. No se tocaron MCP, Google Places, el Prospecting Agent, el Marketing Agent, la calificación, `lib/types.ts` ni las APIs.
+
+**Fase 10 — Flujo de producto.** Título "AI Prospecting Agent" y `lang="es"`; home con la promesa y los pasos; el cuestionario (`lib/questionnaire-schema.ts`, solo datos) quedó ordenado como ¿Qué vendés? → ¿A quién querés venderle? → ¿Dónde? → Contexto (opcional), con los mismos campos y reglas (cubierto por tests).
+
+**Fase 11 — Espacio de prospección.** En `/report`, la estrategia queda compacta (próxima mejor acción visible, el resto plegable) y la sección "¿A quién contactar primero?" es el núcleo: resumen de prioridades ("N prospectos · X alta…, empezá por el #1"), conteo por etapa, número de orden en cada tarjeta, tipo según Google, rating con cantidad de reseñas, y "Por qué esta prioridad" / "Qué no sabemos" plegables.
+
+**Fase 12 — Mensaje.** Se reutilizan las Fases 8 y 9. Aviso con el texto acordado: "La revisión no se guarda: se pierde al recargar o volver a buscar. No se envía nada."
+
+**Fase 13 — Etapas del prospecto.** `lib/workspace/prospect-workspace.ts`, reductor puro: Nuevo → Revisado → Mensaje generado → Aprobado → Contactado. La etapa se deriva de la revisión del mensaje más dos marcas manuales (revisado, contactado); "Contactado" solo con el mensaje aprobado y, mientras está marcado, el mensaje queda bloqueado. El estado de revisión pasó de cada panel a este reductor (en `ProspectsSection`) para poder contar etapas. Decisión: **sin persistencia**. Los criterios de éxito del MVP se cumplen dentro de la sesión; "Contactado" pierde sentido al recargar, y la opción mínima propuesta para cuando haga falta es `localStorage` (sin servidor ni dependencias).
+
+**Fase 14 — Experiencia.** Tiempos esperados en las cargas (estrategia ~30 s, búsqueda 10–30 s), errores con qué hacer, estado vacío con sugerencia, aviso de que "Buscar de nuevo" reinicia la lista, y la búsqueda de prospectos disponible mientras la estrategia todavía carga.
+
+**Fase 15 — Validación real (por API, Claude + MCP + Google Places reales):**
+- Pádel, Buenos Aires: estrategia 200, 20 prospectos reales (17 alta, 3 media), mensaje para el #1 con todas sus afirmaciones respaldadas.
+- Consultorios odontológicos, Córdoba (segundo nicho): estrategia 200, 20 prospectos reales (`dental_clinic`/`dentist`; 8 alta, 11 media, 1 baja), mensajes para los dos primeros con todas sus afirmaciones respaldadas.
+- Dos clases de invención detectadas y corregidas (regla en el prompt + patrón en el validador + test con la frase real): una integración del producto inventada ("Como ya tienen sitio web, se puede sumar ahí") y la ubicación del remitente ("Les escribo desde acá, en Córdoba"; causa: `answers.targetArea` llegaba sin aclarar que es dónde se buscan clientes, ahora el contexto lo dice). Se corrigió además una evaluación previa: "acá en la Ciudad de Buenos Aires" (Fase 8) también afirmaba la ubicación del remitente.
+- Pendiente: la validación completa de la interfaz en el navegador, por falta de memoria en el equipo de desarrollo. La lógica de UI nueva está cubierta por los tests de los reductores.
 
 ## Qué responsabilidad tiene cada capa (estado actual)
 
@@ -160,6 +191,7 @@ orden:    score desc → más canales de contacto (phone/website) → orden orig
 - **Integración externa (`lib/integrations/google-places.ts`):** única fuente de los datos de un `Prospect`. Nunca inventa campos opcionales ausentes. Sigue siendo el único código que le habla a Google.
 - **Calificación (`lib/qualification/`):** prioriza los `Prospect[]` ya obtenidos con reglas deterministas. No llama a Claude ni a Google, no descarta prospectos y no modifica sus campos.
 - **Sales Message Agent (`lib/agent/sales-message-agent.ts`):** redacta, bajo demanda y con una llamada a Claude, un mensaje para un prospecto calificado. El código arma el contexto permitido y valida la factualidad del resultado. No envía nada.
+- **Revisión y etapas (`lib/review/`, `lib/workspace/`):** reductores puros en el navegador. Deciden qué se puede aprobar, copiar o marcar como contactado; no llaman a Claude ni a ninguna API.
 
 ## Garantías actuales
 
@@ -178,4 +210,5 @@ orden:    score desc → más canales de contacto (phone/website) → orden orig
 - La calificación no usa `businessStatus`: los negocios cerrados ya se excluyen en `google-places.ts`, antes de calificar.
 - La validación de factualidad de los mensajes es estructural (ids citados, números, patrones prohibidos): no entiende semántica. Una paráfrasis que exagere un hecho citado correctamente (o una afirmación que Claude no declare como claim) puede pasar, por eso la UI muestra cada claim con su fuente para revisión humana antes de copiar.
 - Los mensajes no se envían: no hay integración con WhatsApp ni email.
-- No hay aprobación persistente, historial ni dashboard (Fase 9, no iniciada).
+- Sin persistencia: prospectos, revisión de mensajes y etapas viven en memoria y se pierden al recargar o al buscar de nuevo (la UI lo avisa). No hay historial ni dashboard.
+- La interfaz del MVP no se validó completa en el navegador (ver Fase 15).

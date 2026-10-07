@@ -158,6 +158,11 @@ describe("validateSalesMessageDraft — anti-hallucination en código", () => {
       "¿Te muestro en dos minutos cómo funciona?",
       // Caso real de la tercera ronda: acción del remitente que no ocurrió.
       "Entré al sitio pasajedelsol.com.ar y me gustó.",
+      // Caso real de la validación del MVP: integración del producto inventada.
+      "Como ya tienen sitio web, se puede sumar ahí.",
+      // Casos reales: ubicación del remitente sin datos (targetArea es dónde busca clientes).
+      "Les escribo desde acá, en Córdoba.",
+      "Los vi en Google como club deportivo acá en la Ciudad de Buenos Aires.",
     ]) {
       const draft = withDraft({ message: `${validDraft.message} ${sentence}` });
       expect(validateSalesMessageDraft(draft, context).length, sentence).toBeGreaterThan(0);

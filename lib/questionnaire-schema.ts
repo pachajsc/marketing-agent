@@ -43,11 +43,28 @@ export interface QuestionnaireStepDef {
   fields: QuestionFieldDef[];
 }
 
+// Orden del producto (Fase 10): ¿Qué vendés? → ¿A quién? → ¿Dónde? →
+// contexto opcional. Mismos campos y mismas reglas que antes; solo cambia
+// en qué paso aparece cada uno.
 export const questionnaireSteps: QuestionnaireStepDef[] = [
   {
-    id: "goal-and-offering",
-    title: "Tu objetivo y tu producto",
+    id: "offering",
+    title: "¿Qué vendés?",
     fields: [
+      {
+        id: "offering",
+        type: "text",
+        label: "¿Qué producto o servicio ofrecés?",
+        placeholder: "Ej: plataforma para organizar eventos de pádel",
+        required: true,
+      },
+      {
+        id: "problem",
+        type: "textarea",
+        label: "¿Qué problema concreto resolvés o qué necesidad cubre tu producto o servicio?",
+        placeholder: "Ej: los clubes tardan mucho tiempo en organizar las inscripciones y pagos de sus torneos",
+        required: true,
+      },
       {
         id: "mainGoal",
         type: "choice",
@@ -64,42 +81,19 @@ export const questionnaireSteps: QuestionnaireStepDef[] = [
           },
         ],
       },
-      {
-        id: "offering",
-        type: "text",
-        label: "¿Qué producto o servicio ofrecés?",
-        placeholder: "Ej: diseño de sitios web para pequeñas empresas",
-        required: true,
-      },
-      {
-        id: "problem",
-        type: "textarea",
-        label: "¿Qué problema concreto resolvés o qué necesidad cubre tu producto o servicio?",
-        placeholder: "Ej: los clubes tardan mucho tiempo en organizar las inscripciones y pagos de sus torneos",
-        required: true,
-      },
     ],
   },
   {
-    id: "ideal-customer",
-    title: "Tu cliente ideal",
+    id: "target",
+    title: "¿A quién querés venderle?",
     fields: [
-      {
-        id: "idealCustomerDescription",
-        type: "textarea",
-        label: "¿Quién es el cliente ideal para tu producto o servicio? Describilo con tus palabras.",
-        placeholder:
-          "Ej: dueños de clubes de pádel que organizan torneos y hoy gestionan las inscripciones por WhatsApp",
-        helpText: "Contá cómo es hoy, qué hace, cómo resuelve este problema actualmente.",
-        required: false,
-      },
       {
         id: "businessCategoryToTarget",
         type: "text",
         label: "¿Qué tipo de negocios, profesionales o personas querés encontrar para ofrecerles tu producto?",
         placeholder: "Ej: clubes de pádel, organizadores de torneos, complejos deportivos",
         helpText:
-          "A diferencia de la pregunta anterior, esto es una categoría corta: nos sirve para poder buscar y agrupar a ese tipo de cliente más adelante (por ejemplo, en Google Maps).",
+          "Una categoría corta: es lo que vamos a buscar en Google Maps para encontrarte prospectos reales.",
         required: true,
       },
       {
@@ -112,12 +106,30 @@ export const questionnaireSteps: QuestionnaireStepDef[] = [
           { value: "b2b", label: "Empresas (B2B)" },
         ],
       },
+      {
+        id: "idealCustomerDescription",
+        type: "textarea",
+        label: "¿Quién es el cliente ideal para tu producto o servicio? Describilo con tus palabras.",
+        placeholder:
+          "Ej: dueños de clubes de pádel que organizan torneos y hoy gestionan las inscripciones por WhatsApp",
+        helpText: "Opcional. Contá cómo es hoy, qué hace, cómo resuelve este problema actualmente.",
+        required: false,
+      },
     ],
   },
   {
-    id: "current-status",
-    title: "Tu situación actual",
+    id: "where",
+    title: "¿Dónde?",
     fields: [
+      {
+        id: "targetArea",
+        type: "text",
+        label: "¿En qué zona querés conseguir clientes?",
+        placeholder: "Ej: Ciudad de Buenos Aires",
+        helpText:
+          "Puede ser una ciudad, una región o un país (ej: \"Buenos Aires y alrededores\", \"Argentina\", \"Estados Unidos\"). Contanos un lugar geográfico, no un canal — no \"Instagram\" o \"redes sociales\".",
+        required: true,
+      },
       {
         id: "hasCustomersToday",
         type: "choice",
@@ -129,20 +141,11 @@ export const questionnaireSteps: QuestionnaireStepDef[] = [
           { value: "stable", label: "Sí, tengo una base de clientes estable" },
         ],
       },
-      {
-        id: "targetArea",
-        type: "text",
-        label: "¿En qué zona querés conseguir clientes?",
-        placeholder: "Ej: Ciudad de Buenos Aires",
-        helpText:
-          "Puede ser una ciudad, una región o un país (ej: \"Buenos Aires y alrededores\", \"Argentina\", \"Estados Unidos\"). Contanos un lugar geográfico, no un canal — no \"Instagram\" o \"redes sociales\".",
-        required: true,
-      },
     ],
   },
   {
     id: "context",
-    title: "Competencia y precio",
+    title: "Contexto (opcional)",
     fields: [
       {
         id: "knownCompetitors",

@@ -1,111 +1,111 @@
-# Marketing Agent
+# AI Prospecting Agent
 
-Agente que, a partir de un producto o servicio que querés vender, identifica tu
-público objetivo y te dice dónde y cómo encontrar clientes potenciales.
+> Decime qué vendés y a quién querés venderle. Encontramos prospectos reales,
+> identificamos cuáles tienen mayor potencial y te preparamos un mensaje
+> personalizado para contactarlos.
 
-El flujo es un **cuestionario guiado** (no un chat abierto). Con tus
-respuestas, el sistema genera una estrategia de marketing inicial con Claude:
+MVP de un agente de prospección. El usuario no necesita saber nada de agentes,
+MCP ni APIs: completa un cuestionario corto y trabaja sobre una lista de
+negocios reales, priorizada, con un mensaje listo para revisar y copiar.
+**No se envía nada automáticamente.**
 
-- perfil del cliente ideal
-- problema/necesidad que tiene
-- propuesta de valor
-- canales de adquisición recomendados
-- estrategia inicial de captación
-- próxima mejor acción
+## Cómo se usa
 
-Cada afirmación de la estrategia indica de dónde sale: **hecho** (viene de tus
-respuestas), **inferencia** (conclusión razonable) o **supuesto** (hipótesis a
-validar).
+1. **¿Qué vendés?** Producto o servicio y el problema que resuelve.
+2. **¿A quién querés venderle?** El tipo de negocio a buscar (ej: "clubes de
+   pádel") y, opcionalmente, una descripción del cliente ideal.
+3. **¿Dónde?** La zona (ej: "Buenos Aires").
+4. **Estrategia.** Claude genera cliente ideal, problema, propuesta de valor,
+   canales, estrategia inicial y próxima mejor acción. Cada afirmación indica
+   si es **hecho** (viene de tus respuestas), **inferencia** o **supuesto**.
+5. **¿A quién contactar primero?** "Buscar prospectos" trae negocios reales de
+   Google Maps (nombre, dirección, teléfono, sitio web, rating, tipo, link),
+   calificados con un score 0–100 y ordenados por prioridad, con las señales
+   que lo justifican y lo que no sabemos de cada uno. El score es prioridad de
+   prospección, **no** una probabilidad de conversión.
+6. **Mensaje.** Por prospecto, a pedido: un borrador de primer contacto en
+   formato WhatsApp, basado solo en datos reales, que muestra de dónde sale
+   cada afirmación. Se revisa, se edita, se aprueba o se rechaza.
+7. **Copiar y contactar.** Solo un mensaje aprobado se puede copiar. Después
+   de usarlo, el prospecto se marca como **contactado**.
 
-El primer canal de adquisición integrado es **Google Maps**: busca negocios
-reales que coincidan con la categoría de cliente dentro de tu zona, y devuelve
-información útil para prospectarlos (nombre, dirección, teléfono, sitio web,
-rating, link a Google Maps). Cada prospecto llega **calificado y ordenado por
-prioridad** (score 0–100), con las señales observables que lo justifican y lo
-que no sabemos de él. El score es prioridad de prospección, no una
-probabilidad de conversión.
+Cada prospecto tiene una etapa: Nuevo → Revisado → Mensaje generado →
+Aprobado → Contactado.
 
-Para cada prospecto podés generar, a pedido, un **borrador de mensaje de
-primer contacto** (formato WhatsApp) para copiar. El mensaje solo usa datos
-reales del prospecto, tus respuestas y la estrategia, y muestra de dónde sale
-cada afirmación. **No se envía nada**: no hay integración con WhatsApp ni email.
+## Arquitectura
 
-## Por qué existe este README paso a paso
+```
+Cuestionario (app/questionnaire/)  →  sessionStorage
+  → /api/marketing-strategy  → Marketing Agent (Claude, Structured Output + Zod)
+  → /api/prospects           → Prospecting Agent (Claude propone; el código groundea)
+                                → Tool → cliente MCP → servidor MCP (stdio) → Google Places
+                              → qualifyProspects (determinista, sin IA)
+  → /api/sales-message       → Sales Message Agent (1 llamada a Claude, validación en código)
+  → Reporte (app/report/): revisión y etapas en el navegador (lib/review/, lib/workspace/)
+```
 
-Este proyecto también es un **laboratorio para aprender Claude Code**. Se
-construye de forma incremental: cada paso se implementa, se corre y se
-verifica antes de pasar al siguiente. Este README se va actualizando para
-reflejar en qué paso está el proyecto.
+- `lib/agent/`: agentes (estrategia, plan de prospección, mensajes).
+- `lib/tools/`, `lib/mcp/`, `mcp/prospecting-server/`: el tool
+  `search_businesses`, expuesto por un servidor MCP propio.
+- `lib/integrations/google-places.ts`: único código que habla con Google.
+- `lib/qualification/`: score determinista.
+- `lib/review/`, `lib/workspace/`: revisión del mensaje y etapas del
+  prospecto, como módulos puros (sin red ni IA).
+- `lib/types.ts`: contrato de datos (Zod).
 
-## Estado actual
+**Costos de IA por acción:** generar la estrategia, 1 llamada; buscar
+prospectos, 1 llamada (el plan) + Google Places; generar un mensaje, 1
+llamada. Calificar, editar, aprobar, rechazar, copiar y cambiar etapas no
+llaman a Claude ni a ninguna API. Nada se genera automáticamente para todos
+los prospectos.
 
-- [x] **Cuestionario guiado** (`app/questionnaire/`): wizard de 4 pasos con
-  barra de progreso y resumen editable. Las preguntas se definen como datos en
-  `lib/questionnaire-schema.ts`.
-- [x] **Estrategia de marketing con IA** (`app/api/marketing-strategy` →
-  `lib/agent/marketing-agent.ts`): Claude devuelve una `MarketingStrategy`
-  como Structured Output, validada con Zod (`lib/types.ts`).
-- [x] **Reporte** (`app/report/page.tsx`): muestra la estrategia, distinguiendo
-  hecho / inferencia / supuesto y la próxima mejor acción.
-- [x] **Prospección** (`app/api/prospects` → `lib/agent/prospecting-agent.ts`):
-  Claude propone un `ProspectingPlan`; el código fuerza categoría y zona a los
-  valores literales del cuestionario y solo ejecuta las búsquedas `fact`. La
-  búsqueda se dispara manualmente desde el reporte (botón "Buscar prospectos").
-- [x] **MCP**: la búsqueda cruza un límite de proceso real. Un servidor MCP
-  standalone (`mcp/prospecting-server/server.ts`, stdio) expone el tool
-  `search_businesses`; el cliente (`lib/mcp/prospecting-mcp-client.ts`) lo
-  levanta y reutiliza. Los parámetros y resultados se validan en ambos lados.
-- [x] **Google Places integrado** (`lib/integrations/google-places.ts`): Text
-  Search (New), excluye negocios cerrados y nunca completa campos que Google
-  no devolvió.
-- [x] **Calificación de prospectos** (`lib/qualification/qualify-prospects.ts`):
-  función pura y determinista, sin Claude ni llamadas externas, que se ejecuta
-  después de obtener los prospectos reales. Score 0–100 = relevancia (30) +
-  zona (20) + contacto (20) + completitud (15) + señales (15), con prioridad
-  alta (≥75), media (50–74) o baja (<50). Solo los hechos observables suman
-  puntos. Detalle de la fórmula en `docs/agent-roadmap.md`, Fase 7.
-- [x] **Mensajes comerciales** (`lib/agent/sales-message-agent.ts`,
-  `app/api/sales-message`): bajo demanda, una llamada a Claude por mensaje.
-  El código valida que cada afirmación cite datos reales y rechaza números,
-  necesidades o promesas sin respaldo. Detalle en `docs/agent-roadmap.md`,
-  Fase 8.
-- [x] **Tests** (Vitest): suite con Google Places y Anthropic mockeados, más un
-  test de integración que levanta el servidor MCP real (sin llamar a Google).
+**Factualidad:** los prospectos son exactamente los que devolvió Google; la
+categoría y la zona de búsqueda siempre salen de tus respuestas; el mensaje
+solo puede afirmar sobre el prospecto hechos reales, y el código rechaza
+números, necesidades, procesos, integraciones, tracción o ubicaciones sin
+respaldo. Detalle en [`docs/agent-roadmap.md`](docs/agent-roadmap.md).
 
-### Roadmap
+## Estado
 
-El detalle de cada fase, con sus decisiones y garantías, está en
-[`docs/agent-roadmap.md`](docs/agent-roadmap.md) (fuente de verdad).
-
-| Fase | Contenido | Estado |
-| --- | --- | --- |
-| 0 | Auditoría | ✅ |
-| 1 | Estabilizar Prospecting (grounding de entrada/salida, validación del endpoint) | ✅ |
-| 2 | Testing con Vitest | ✅ |
-| 3 | `ProspectingPlan` + grounding + política de ejecución (solo `fact`) | ✅ |
-| 4 | Separación Agent / Tools / Integrations | ✅ |
-| 5 | Evaluación de MCP | ✅ |
-| 6 | Primer MCP (`search_businesses`) en el request path real | ✅ |
-| 7 | Calificación de prospectos (scoring determinista, sin IA) | ✅ |
-| 8 | Mensajes comerciales personalizados (borrador, sin envío) | ✅ |
-| 9 | Dashboard | ⏳ no iniciada |
+MVP implementado (fases 0 a 15 de
+[`docs/agent-roadmap.md`](docs/agent-roadmap.md)) y validado con Claude, MCP
+y Google Places reales por API en dos nichos: plataforma de eventos de pádel
+(Buenos Aires) y software de turnos para consultorios odontológicos (Córdoba).
+La validación completa de la interfaz en el navegador quedó pendiente (ver
+abajo).
 
 ### Limitaciones conocidas
 
-- Las búsquedas `inference`/`assumption` del plan se groundean pero no se
-  ejecutan: todavía no hay UI para que una persona las revise y apruebe.
-- La prospección necesita `businessCategoryToTarget`; sin ese dato no hay
-  búsqueda.
-- La relevancia de la calificación es coincidencia textual (nombre y tipo
-  principal de Google; los tipos secundarios no suman), no semántica: no reconoce sinónimos, y la zona se compara como
-  texto contra la dirección, sin medir distancia.
-- Sin persistencia: las respuestas viven en `sessionStorage` del navegador.
-- El servidor MCP se ejecuta con `npx tsx` sobre un archivo `.ts`. Hoy funciona
-  con `next dev` y `next build`/`next start` desde el repo, pero un build con
-  `output: "standalone"` no incluiría sus dependencias (`tsx`, `lib/` en `.ts`,
-  `tsconfig.json`), así que habría que resolverlo antes de un deploy así.
-- Otros canales de adquisición, outreach automatizado y base de datos quedan
-  fuera de alcance por ahora.
+- **Sin persistencia:** las respuestas viven en `sessionStorage`; los
+  prospectos, la revisión de mensajes y las etapas, en memoria. Se pierden al
+  recargar o al buscar de nuevo (la interfaz lo avisa).
+- **Validación de factualidad por patrones:** bloquea las clases de invención
+  detectadas en validaciones reales, pero no entiende semántica. Por eso la
+  aprobación humana es obligatoria y cada afirmación muestra su fuente.
+- **Relevancia textual:** la calificación compara texto (nombre y tipo
+  principal de Google), no reconoce sinónimos ni mide distancias.
+- La prospección necesita el tipo de negocio a buscar.
+- Las búsquedas que el plan infiere de la descripción libre del cliente ideal
+  no se ejecutan: solo la búsqueda literal.
+- El servidor MCP corre con `npx tsx` sobre un `.ts`: funciona con
+  `next dev` y `next build`/`next start` desde el repo, pero un build con
+  `output: "standalone"` no incluiría sus dependencias.
+- En desarrollo, la estrategia se pide dos veces al cargar el reporte
+  (StrictMode de React); en producción, una.
+
+### Fuera del MVP
+
+Envío automático (WhatsApp, email), envío masivo, campañas, seguimiento,
+CRM, múltiples usuarios, billing, scraping de redes y analytics.
+
+### Próximos pasos
+
+1. Validar la interfaz completa en el navegador (pendiente por falta de
+   memoria en el equipo de desarrollo).
+2. Decidir la persistencia mínima de prospectos, mensajes y etapas (propuesta:
+   `localStorage` del navegador, sin servidor ni dependencias).
+3. Más adelante: mensaje aprobado → WhatsApp Business → envío → respuesta →
+   seguimiento.
 
 ## Requisitos
 
@@ -135,3 +135,10 @@ npm run lint
 npm test
 npm run build
 ```
+
+## Origen
+
+El proyecto empezó como un laboratorio para aprender Claude Code construyendo
+un agente real (Next.js, TypeScript, Claude, Zod, Structured Outputs, Tools y
+MCP), fase por fase. El historial de decisiones está en
+[`docs/agent-roadmap.md`](docs/agent-roadmap.md).

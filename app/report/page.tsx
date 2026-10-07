@@ -198,53 +198,24 @@ export default function ReportPage() {
 
   return (
     <div className="flex min-h-screen flex-col items-center bg-zinc-50 px-6 py-16 dark:bg-black">
-      <main className="flex w-full max-w-xl flex-col gap-6">
-        <h1 className="text-2xl font-semibold text-black dark:text-white">
-          Tu estrategia de marketing
-        </h1>
-
-        {state.status === "loading" && (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Generando tu estrategia con el Marketing Intelligence Agent...
-          </p>
-        )}
-
-        {state.status === "error" && (
-          <p className="text-sm text-red-600 dark:text-red-400">{state.message}</p>
-        )}
-
-        {state.status === "ready" && (
-          <>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Esto es lo que armó el Marketing Intelligence Agent a partir de tus respuestas.
-              <br />
-              <span className="text-zinc-400 dark:text-zinc-500">
-                Hecho = viene de tus respuestas. Inferencia = una conclusión razonable. Supuesto =
-                una hipótesis que conviene validar.
-              </span>
+      <main className="flex w-full max-w-xl flex-col gap-8">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-2xl font-semibold text-black dark:text-white">Tu plan de prospección</h1>
+          {questionnaireAnswers && (
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              Vendés <span className="text-black dark:text-white">{questionnaireAnswers.offering}</span>
+              {questionnaireAnswers.businessCategoryToTarget && (
+                <>
+                  {" "}a <span className="text-black dark:text-white">{questionnaireAnswers.businessCategoryToTarget}</span>
+                </>
+              )}{" "}
+              en <span className="text-black dark:text-white">{questionnaireAnswers.targetArea}</span>.{" "}
+              <Link href="/questionnaire" className="underline">
+                Empezar de nuevo
+              </Link>
             </p>
-
-            <div className="flex flex-col gap-8">
-              {STRATEGY_SECTIONS.map(({ key, title }) => (
-                <section key={key} className="flex flex-col gap-3">
-                  <h2 className="text-lg font-semibold text-black dark:text-white">{title}</h2>
-                  <div className="flex flex-col gap-2">
-                    {state.strategy[key].map((claim, index) => (
-                      <ClaimCard key={index} claim={claim} />
-                    ))}
-                  </div>
-                </section>
-              ))}
-
-              <section className="flex flex-col gap-3">
-                <h2 className="text-lg font-semibold text-black dark:text-white">
-                  Próxima mejor acción
-                </h2>
-                <NextBestActionCard nextBestAction={state.strategy.nextBestAction} />
-              </section>
-            </div>
-          </>
-        )}
+          )}
+        </div>
 
         {state.status === "no-answers" && (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -254,6 +225,54 @@ export default function ReportPage() {
             </Link>
             .
           </p>
+        )}
+
+        {state.status !== "no-answers" && (
+          <section className="flex flex-col gap-3">
+            <h2 className="text-lg font-semibold text-black dark:text-white">Tu estrategia</h2>
+
+            {state.status === "loading" && (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                Generando tu estrategia con IA… suele tardar unos 30 segundos. Mientras tanto ya podés
+                buscar prospectos más abajo.
+              </p>
+            )}
+
+            {state.status === "error" && (
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {state.message} Podés buscar prospectos igual; para generar mensajes hace falta la
+                estrategia, así que recargá la página para reintentar.
+              </p>
+            )}
+
+            {state.status === "ready" && (
+              <>
+                <NextBestActionCard nextBestAction={state.strategy.nextBestAction} />
+
+                <details className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+                  <summary className="cursor-pointer text-sm font-medium text-black dark:text-white">
+                    Ver estrategia completa: cliente ideal, problema, propuesta de valor, canales y estrategia inicial
+                  </summary>
+                  <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-500">
+                    Hecho = viene de tus respuestas. Inferencia = una conclusión razonable. Supuesto = una
+                    hipótesis que conviene validar.
+                  </p>
+                  <div className="mt-3 flex flex-col gap-6">
+                    {STRATEGY_SECTIONS.map(({ key, title }) => (
+                      <section key={key} className="flex flex-col gap-2">
+                        <h3 className="text-base font-semibold text-black dark:text-white">{title}</h3>
+                        <div className="flex flex-col gap-2">
+                          {state.strategy[key].map((claim, index) => (
+                            <ClaimCard key={index} claim={claim} />
+                          ))}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                </details>
+              </>
+            )}
+          </section>
         )}
 
         {questionnaireAnswers && (

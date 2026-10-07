@@ -117,7 +117,15 @@ export function buildSalesMessageContext(
   add("answers.businessType", "questionnaire", "fact", BUSINESS_TYPE_LABEL[answers.businessType]);
   add("answers.idealCustomerDescription", "questionnaire", "fact", answers.idealCustomerDescription);
   add("answers.businessCategoryToTarget", "questionnaire", "fact", answers.businessCategoryToTarget);
-  add("answers.targetArea", "questionnaire", "fact", answers.targetArea);
+  // Se aclara qué significa: es dónde el usuario BUSCA clientes, no dónde
+  // está él (en la validación real, Claude lo usó como "les escribo desde
+  // acá, en Córdoba").
+  add(
+    "answers.targetArea",
+    "questionnaire",
+    "fact",
+    answers.targetArea?.trim() ? `Zona donde el usuario busca clientes: ${answers.targetArea.trim()}` : undefined
+  );
   add("answers.priceRange", "questionnaire", "fact", answers.priceRange);
 
   for (const section of STRATEGY_SECTIONS) {
@@ -149,9 +157,10 @@ Recibís una lista de DATOS, cada uno con un id entre corchetes. Es la ÚNICA in
 Reglas estrictas:
 1. Personalizá para ESTE negocio con lo que lo distingue en la sección PROSPECTO: lo que dice su nombre, su rubro según Google, su calle o zona, si tiene sitio web. Elegí UN ángulo; no arranques siempre por el rating o las reseñas, no repitas mecánicamente todos los datos ni uses una fórmula fija. Sin elogios ni exageraciones ("un golazo", "increíble").
 2. Sobre el prospecto, solo afirmá hechos de la sección PROSPECTO o evidencia [fact] de CALIFICACIÓN. Nunca le atribuyas problemas, necesidades, intenciones, búsquedas, procesos actuales, herramientas, métricas, cantidad de canchas/clientes/eventos/reservas, facturación, crecimiento ni planes. Si no está en los datos, no existe.
-3. Lo que el producto ofrece describilo con CUESTIONARIO o ESTRATEGIA, como propuesta general ("ayuda a organizar..."), nunca como algo que el prospecto necesita. No copies slogans de la estrategia, y no menciones herramientas o formas de trabajo que el producto reemplazaría (planillas, papel, mensajes sueltos, grupos de WhatsApp, "a mano"): eso insinúa cómo trabaja hoy el prospecto, y no lo sabemos. No le agregues al producto características que no estén en los datos (ej: "todo en un mismo lugar", "automático", "en minutos").
+3. Lo que el producto ofrece describilo con CUESTIONARIO o ESTRATEGIA, como propuesta general ("ayuda a organizar..."), nunca como algo que el prospecto necesita. No copies slogans de la estrategia, y no menciones herramientas o formas de trabajo que el producto reemplazaría (planillas, papel, mensajes sueltos, grupos de WhatsApp, "a mano"): eso insinúa cómo trabaja hoy el prospecto, y no lo sabemos. No le agregues al producto características que no estén en los datos (ej: "todo en un mismo lugar", "automático", "en minutos"), ni integraciones con el sitio, las redes o los sistemas del prospecto ("se puede sumar a su web", "se integra con...").
 3b. No afirmes nada sobre clientes, usuarios, adopción o trayectoria del producto ("estamos sumando clubes", "ya lo usan", "trabajamos con..."): no hay datos de eso.
 3c. No digas que entraste, visitaste, leíste o revisaste su sitio, redes o reseñas: solo sabemos que existen ("tienen sitio web", "figuran en Google").
+3d. No sabés dónde está ni quién es el remitente: no escribas "desde acá", "acá en...", "estoy en..." ni "somos de...". La zona del CUESTIONARIO es dónde busca clientes, no dónde está.
 4. Lo listado en NO SABEMOS no se puede afirmar ni insinuar.
 5. No menciones el score ni la prioridad. Nunca hables de probabilidades.
 6. Sin precios, descuentos, promociones, garantías, urgencia, porcentajes ni promesas de resultados o de tiempo ("en dos minutos"). No escribas números, ni en cifras ni en palabras, salvo que estén literalmente en los datos.
@@ -223,6 +232,22 @@ const FORBIDDEN_PATTERNS: { pattern: RegExp; reason: string }[] = [
       // \s (no \b) después del verbo: en JS \b no considera "é"/"í" como letras.
       /\b(entr[eé]|visit[eé]|revis[eé]|le[ií]|estuve viendo|estuve mirando)\s[^.?!]{0,20}\b(sitio|web|p[aá]gina|instagram|redes|perfil|rese[nñ]as)\b/i,
     reason: "afirma que se visitó el sitio, redes o reseñas",
+  },
+  // Integraciones del producto con lo que tiene el prospecto: no hay datos de
+  // eso. Caso real (MVP, nicho dental): "Como ya tienen sitio web, se puede
+  // sumar ahí" — el hecho citado era real, la integración no.
+  {
+    pattern:
+      /\b(se (puede|podr[ií]a) (sumar|integrar|conectar|agregar|instalar|incorporar)|se integra|integraci[oó]n con|se conecta con)\b/i,
+    reason: "promete una integración del producto que no está en los datos",
+  },
+  // Ubicación del remitente: no hay datos de dónde está el usuario
+  // (targetArea es dónde busca clientes). Casos reales: "les escribo desde
+  // acá, en Córdoba", "acá en la Ciudad de Buenos Aires".
+  {
+    // Lookahead (no \b al final): en JS \b no reconoce "á" como letra.
+    pattern: /\b(desde ac[aá]|ac[aá] en|estoy en|estamos en|soy de|somos de)(?=[\s,.;:!?]|$)/i,
+    reason: "afirma la ubicación del remitente sin datos",
   },
   // Tracción del producto: el contexto no tiene datos de clientes ni adopción.
   {
