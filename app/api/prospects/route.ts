@@ -14,10 +14,16 @@
 // reconstruidas por lib/mcp/prospecting-mcp-client.ts a partir del payload
 // de error del tool. La distinción 500/429/502 que existía antes de MCP se
 // preserva igual, solo cambia de qué módulo vienen las clases.
+//
+// Fase 7: después de obtener los Prospect[] reales, se califican con
+// qualifyProspects (lib/qualification/) — función pura y determinista, sin
+// Claude ni red. La respuesta sigue siendo un array con todos los campos de
+// cada Prospect, ahora con `qualification` agregado y ordenado por prioridad.
 import { z } from "zod";
 import Anthropic from "@anthropic-ai/sdk";
 import { runProspectingAgent } from "@/lib/agent/prospecting-agent";
 import { McpProspectingConfigError, McpProspectingRequestError } from "@/lib/mcp/prospecting-mcp-client";
+import { qualifyProspects } from "@/lib/qualification/qualify-prospects";
 import { MarketingStrategySchema, type QuestionnaireAnswers } from "@/lib/types";
 
 // Valida únicamente los campos de QuestionnaireAnswers que ProspectingAgent
@@ -73,7 +79,7 @@ export async function POST(request: Request) {
 
   try {
     const result = await runProspectingAgent(answers, strategy);
-    return Response.json(result.prospects);
+    return Response.json(qualifyProspects(result.prospects, answers));
   } catch (error) {
     // Mismo criterio que marketing-strategy/route.ts: loguear el detalle
     // server-side, pero nunca devolverlo al cliente tal cual (podría

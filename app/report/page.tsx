@@ -5,12 +5,12 @@ import Link from "next/link";
 import type {
   Claim,
   ClaimSource,
-  Confidence,
   MarketingStrategy,
   NextBestAction,
   QuestionnaireAnswers,
 } from "@/lib/types";
 import { ProspectsSection } from "./components/ProspectsSection";
+import { SourceBadgeRow } from "./components/SourceBadge";
 
 /**
  * Antes: esta página llamaba a runMarketingAgent directamente (cálculo
@@ -59,18 +59,6 @@ const STRATEGY_SECTIONS: { key: ClaimSectionKey; title: string }[] = [
   { key: "initialStrategy", title: "Estrategia inicial" },
 ];
 
-const SOURCE_LABEL: Record<ClaimSource, string> = {
-  fact: "Hecho",
-  inference: "Inferencia",
-  assumption: "Supuesto",
-};
-
-const CONFIDENCE_LABEL: Record<Confidence, string> = {
-  low: "Baja",
-  medium: "Media",
-  high: "Alta",
-};
-
 // Borde de la tarjeta según procedencia: neutro para hechos e inferencias,
 // ámbar (sutil, no alarmista) para supuestos — para que se distingan de
 // un vistazo sin depender solo de leer la etiqueta.
@@ -79,32 +67,6 @@ const CARD_BORDER: Record<ClaimSource, string> = {
   inference: "border-blue-200 dark:border-blue-900",
   assumption: "border-amber-200 dark:border-amber-900",
 };
-
-const BADGE_STYLE: Record<ClaimSource, string> = {
-  fact: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-  inference: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
-  assumption: "bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300",
-};
-
-/**
- * Fila de badges (source + confidence) compartida entre ClaimCard y
- * NextBestActionCard. Local a esta página, no es una abstracción global —
- * evita repetir la misma franja de JSX en las dos tarjetas.
- */
-function SourceBadgeRow({ source, confidence }: { source: ClaimSource; confidence?: Confidence }) {
-  return (
-    <div className="mb-1.5 flex flex-wrap items-center gap-2">
-      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BADGE_STYLE[source]}`}>
-        {SOURCE_LABEL[source]}
-      </span>
-      {confidence && (
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">
-          Confianza: {CONFIDENCE_LABEL[confidence]}
-        </span>
-      )}
-    </div>
-  );
-}
 
 /**
  * Tarjeta visual para un Claim individual. Local a esta página por ahora

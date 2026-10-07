@@ -1,6 +1,6 @@
 # AI Marketing Agent — roadmap de arquitectura agentic
 
-Este documento registra, fase por fase, qué se construyó realmente en el roadmap hacia una arquitectura agentic con Tools y MCP. Solo documenta lo que está implementado y verificado (`tsc`, `eslint`, tests) al momento de escribirse — no es una aspiración ni un plan. Cubre las Fases 0 a 6 del roadmap; las Fases 7-9 (Qualification, mensajes de venta, dashboard) todavía no están iniciadas.
+Este documento registra, fase por fase, qué se construyó realmente en el roadmap hacia una arquitectura agentic con Tools y MCP. Solo documenta lo que está implementado y verificado (`tsc`, `eslint`, tests) al momento de escribirse — no es una aspiración ni un plan. Cubre las Fases 0 a 8 del roadmap; la Fase 9 (aprobación, dashboard) todavía no está iniciada.
 
 ## Fase 0 — Auditoría
 
@@ -87,6 +87,70 @@ Agent (prospecting-agent.ts)
 
 **Testing (sin llamadas reales a Google ni Anthropic):** `lib/mcp/prospecting-mcp-client.test.ts` es la única excepción documentada a "todo mockeado" — es un test de integración real que spawnea el proceso MCP de verdad (vía `npx tsx`) y le habla con un Client real, verificando `tools/list` y el camino de error de configuración (sin `GOOGLE_MAPS_API_KEY`, que nunca llega a tocar la red). No viola la regla de "no llamadas a servicios externos": no se llama a Google Places ni a Anthropic, solo se prueba que el protocolo MCP en sí funciona de punta a punta entre dos procesos propios. `lib/mcp/prospecting-mcp-client.unit.test.ts` cubre la lógica de reconstrucción de errores y validación de `structuredContent` con el SDK de MCP mockeado (sin subproceso).
 
+## Fase 7 — Calificación de prospectos — IMPLEMENTED
+
+**Objetivo:** priorizar los `Prospect[]` reales que ya devolvió Google Places, explicando por qué cada uno tiene esa prioridad y qué no sabemos de él. No es una probabilidad de conversión, y la UI lo dice explícitamente.
+
+**Dónde vive:** `lib/qualification/qualify-prospects.ts`, con `qualifyProspects(prospects, answers)` como función pura y determinista: sin Claude, sin red, sin `process.env`, sin aleatoriedad. Se invoca desde `app/api/prospects/route.ts` **después** de `runProspectingAgent`, así que el Agent, el Tool, el MCP y Google Places no cambiaron, y siguen vigentes sus garantías (prospectos sin transformar hasta ese punto, grounding de categoría/zona, solo búsquedas `fact`). **Costo de IA adicional: 0 llamadas** (verificado contando requests HTTP a `api.anthropic.com` en un request real: 1, el `ProspectingPlan` ya existente).
+
+**Contrato (`lib/types.ts`):** `QualifiedProspectSchema = ProspectSchema.extend({ qualification })`. La respuesta de `/api/prospects` sigue siendo un array con todos los campos de cada `Prospect` intactos, más `qualification`: `score`, `priority` (`high|medium|low`), `breakdown` por criterio, `evidence[]` (`text`, `source` fact/inference/assumption, `criterion?`, `points`, `basedOn`), `unknowns[]` y `summary`. El schema valida las invariantes: solo una evidencia `fact` puede tener `points > 0`; `score` = suma del `breakdown`; cada criterio del `breakdown` = suma de los puntos de su evidencia.
+
+**Fórmula (máximo 100):**
+
+```
+score = relevance (0–30) + location (0–20) + contact (0–20) + completeness (0–15) + signals (0–15)
+
+relevance    = nombre: 2+ términos de businessCategoryToTarget → 20, 1 → 15, 0 → 0
+             + primaryType coincide → 10 (los types secundarios no suman)
+location     = términos de targetArea en address: todos → 20, algunos → 10, ninguno → 0
+contact      = phone → 10 + website → 10
+completeness = rating → 5 + userRatingCount → 5 + primaryType → 5
+signals      = userRatingCount ≥ 100 → 10, ≥ 20 → 5; + rating ≥ 4.0 con ≥ 20 reseñas → 5
+
+priority: high ≥ 75, medium 50–74, low < 50 (constantes en código)
+orden:    score desc → más canales de contacto (phone/website) → orden original de Google
+```
+
+"Coincidencia" es siempre textual: minúsculas, sin acentos, sin conectores, plural simple a singular, con tokens iguales o con un prefijo común de al menos 4 letras (`evento` ~ `event`). La de zona se presenta siempre como "coincidencia textual con la zona buscada", nunca como distancia: no hay coordenadas. Por los pesos, un prospecto sin ninguna coincidencia de relevancia suma como máximo 70 y no puede quedar en prioridad alta.
+
+**Fact / inference / assumption:** solo los hechos observables (`Prospect` + `answers`) suman puntos. Las inferencias (por ejemplo, "teléfono y sitio web → más de una vía de contacto") se muestran con 0 puntos y `basedOn` apuntando a los hechos de los que derivan. El calificador no genera supuestos, y un supuesto con puntos no pasa el schema. `unknowns` declara lo que no sabemos: los campos que Google no devolvió más una lista fija (necesidad real, quién decide, presupuesto e intención de compra, tamaño/facturación/clientes, actividad reciente, distancia).
+
+**UI (`ProspectsSection.tsx`):** cada tarjeta muestra "N/100 — Prioridad alta/media/baja", el resumen, hasta 4 señales con badge Hecho/Inferencia y sus puntos, los datos de contacto y un "Qué no sabemos" plegable. Encima de la lista: "El score prioriza prospectos según señales observables disponibles. No representa una probabilidad de conversión." `SourceBadgeRow` se movió de `app/report/page.tsx` a `app/report/components/SourceBadge.tsx` sin cambios para reutilizar el badge.
+
+**Tests:** `lib/qualification/qualify-prospects.test.ts` (score máximo/mínimo, sin teléfono, sin website, datos completos/incompletos, thresholds high/medium/low, inferencias y supuestos sin puntos, determinismo y no mutación, sin claims comerciales, orden y desempates, compatibilidad con `Prospect`). Se ajustó el test (12) de `route.test.ts`: ahora verifica que los campos de `Prospect` llegan intactos y que se agrega `qualification`.
+
+**Validación real (caso pádel, Buenos Aires):** 20 prospectos reales de Google Places, todos con `qualification` válida contra el schema, ordenados, sin claims prohibidos y sin inferencias/supuestos con puntos. Distribución: 19 alta (75–100) y 1 media (Delpa Excursionistas, 55). Después de la corrección de `types` secundarios, "Pasaje Del Sol" (primaryType `service`) pasó de 75 (alta) a 70 (media). Verificado también en la UI real (Chrome).
+
+## Fase 8 — Mensajes comerciales personalizados — COMPLETA
+
+**Qué genera:** un borrador de mensaje de primer contacto, en formato WhatsApp (corto, conversacional, con CTA de baja fricción), para UN prospecto calificado. **No envía nada:** no hay integración con WhatsApp, email ni ningún canal; el usuario lo revisa y lo copia. `channel: "whatsapp"` describe solo el formato.
+
+**Componentes:** `lib/agent/sales-message-agent.ts` (Sales Message Agent, `server-only`), `POST /api/sales-message` (`app/api/sales-message/route.ts`), `SalesMessagePanel` en cada tarjeta de `ProspectsSection`, y el contrato en `lib/types.ts`: `SalesMessageDraftSchema` (lo que devuelve Claude) y `SalesMessageSchema` (resultado estricto: `prospectId`, `channel`, `message`, `cta`, `claims`, `unknowns`). `prospectId` es el `mapsUrl` de Google: el proyecto no tenía un id de prospecto y no se inventó uno.
+
+**Bajo demanda, una llamada a Claude por generación:** nada se genera al cargar el reporte ni para todos los prospectos; cada click en "Generar mensaje" es exactamente una llamada a Claude (verificado contando requests HTTP a `api.anthropic.com`: 1, y 0 a Google), sin reintentos automáticos, sin polling, con el botón oculto mientras hay una generación en curso. Si el mensaje no pasa la validación, el endpoint responde 502 y el usuario decide si vuelve a generar.
+
+**Contexto que recibe Claude** (armado por código, cada dato con un id citable):
+- `prospect.*`: campos del `Prospect` real que existan (name, address, phone, website, rating, userRatingCount, primaryType, types, mapsUrl), todos `fact`.
+- `answers.*`: offering, problem, businessType, idealCustomerDescription, businessCategoryToTarget, targetArea, priceRange (si existen). `knownCompetitors`, `mainGoal` y `hasCustomersToday` quedan afuera: son información interna del usuario.
+- `strategy.*`: `valueProposition`, `idealCustomerProfile` y `problemOrNeed`, **sin los supuestos**. Canales, estrategia inicial y próxima acción no entran: son planes internos.
+- `qualification.evidence.*` (sin supuestos), más score/prioridad solo como contexto de tono (no citable, nunca como probabilidad) y `unknowns` como lista de lo que está prohibido afirmar.
+- La `qualification` la recalcula el servidor con `qualifyProspect`: Claude nunca ve evidencia que haya mandado el cliente.
+
+**Anti-hallucination en código (no solo prompt):** Claude devuelve, junto al mensaje, cada afirmación con el fragmento literal y los ids que la respaldan. `validateSalesMessageDraft` rechaza el mensaje entero si:
+- cita un id inexistente o un supuesto;
+- afirma algo del prospecto (`about: "prospect"`) sin un hecho real del `Prospect` o evidencia `fact` de su qualification;
+- el fragmento citado o el CTA no aparecen literalmente en el mensaje, o el CTA no es pregunta;
+- contiene números (en cifras) que no están en los datos, o cantidades escritas en palabras ("en dos minutos");
+- contiene porcentajes, garantías, urgencia, "probabilidad" o menciones al score;
+- le atribuye al prospecto necesidades, búsquedas o problemas ("vi que necesitan", "están buscando", "tienen problemas");
+- menciona herramientas o procesos que el producto "reemplazaría" (planillas, papel, mensajes sueltos, grupos de WhatsApp, "a mano"), afirma tracción del producto ("estamos sumando clubes", "ya lo usan") o dice haber visitado el sitio/redes/reseñas del prospecto.
+
+**Provenance:** la procedencia de cada claim la deriva el código a partir de lo citado (`fact` si todo lo citado es hecho, `inference` si cita alguna inferencia; nunca `assumption`), no la declara Claude. La UI muestra cada claim con su badge y los ids en los que se basa.
+
+**Validación real (caso pádel, Buenos Aires; Claude + MCP + Google Places reales):** se generaron mensajes para 3 prospectos reales (AVANT CLUB Gym & Padel 100/alta, Quality Padel Club y Pilates 90/alta, Pasaje Del Sol 70/media) y uno más desde la UI (First Pádel Center), revisando cada afirmación contra su fuente. Las primeras rondas detectaron afirmaciones sin respaldo suficiente que el validador todavía no cubría ("sin planillas ni mensajes sueltos" —un supuesto de la estrategia que entraba vía una inferencia—, "estamos sumando clubes", "en dos minutos", "entré al sitio"); cada caso se corrigió en el prompt y en el validador, con un test de regresión, y se regeneró hasta que todas las afirmaciones quedaron respaldadas.
+
+**Fuera de alcance (Fase 9, no implementada):** aprobación/rechazo persistente, edición persistente, historial, estados de campaña, CRM, dashboard, tracking y envío.
+
 ## Qué responsabilidad tiene cada capa (estado actual)
 
 - **Claude (LLM reasoning):** propone un `ProspectingPlan` — qué buscar y por qué, distinguiendo `fact`/`inference`/`assumption`. No decide qué se ejecuta finalmente, no ve los prospectos reales antes de que el código responda, no reconstruye nada.
@@ -94,6 +158,8 @@ Agent (prospecting-agent.ts)
 - **Tool (`lib/tools/search-prospects-tool.ts`):** valida el input con Zod y delega la ejecución. Sin lógica de IA, sin saber si la ejecución real es local o vía MCP.
 - **MCP (`mcp/prospecting-server/` + `lib/mcp/`):** transporta la invocación de `search_businesses` a través de un límite de proceso real, revalidando en ambos extremos. No conoce reglas de negocio del dominio (grounding, provenance) — esas viven exclusivamente en el Agent.
 - **Integración externa (`lib/integrations/google-places.ts`):** única fuente de los datos de un `Prospect`. Nunca inventa campos opcionales ausentes. Sigue siendo el único código que le habla a Google.
+- **Calificación (`lib/qualification/`):** prioriza los `Prospect[]` ya obtenidos con reglas deterministas. No llama a Claude ni a Google, no descarta prospectos y no modifica sus campos.
+- **Sales Message Agent (`lib/agent/sales-message-agent.ts`):** redacta, bajo demanda y con una llamada a Claude, un mensaje para un prospecto calificado. El código arma el contexto permitido y valida la factualidad del resultado. No envía nada.
 
 ## Garantías actuales
 
@@ -108,4 +174,8 @@ Agent (prospecting-agent.ts)
 - El plan de Claude puede proponer como máximo dos ángulos de búsqueda (el literal y uno inferido de `idealCustomerDescription`) — no hay research de mercado, análisis de competencia, ni variaciones geográficas.
 - Las búsquedas `inference`/`assumption` quedan groundeadas pero nunca llegan a ejecutarse: no existe todavía ningún mecanismo (UI/dashboard) para que un humano las revise y apruebe.
 - El servidor MCP se spawnea vía `npx tsx` apuntando a un archivo `.ts` fuente — en un deploy de producción que podara agresivamente el árbol de archivos (ej. Next.js `output: "standalone"`), ese archivo y sus dependencias (`lib/integrations/`, `lib/tools/`, `lib/types.ts`) podrían no incluirse, porque Next.js no rastrea un `child_process.spawn` como una dependencia real. No se resolvió en este roadmap — es un riesgo operacional conocido, no bloqueante para este proyecto en su estado actual (sin ese modo de build configurado).
-- No hay qualification, mensajes de venta ni dashboard conectado (Fases 7-9, no iniciadas).
+- La relevancia de la calificación es coincidencia textual, no semántica. Los tipos de Google son identificadores en inglés, así que con una categoría en español solo coinciden palabras o prefijos compartidos (`club`, `event`→`evento`). Un sinónimo ("complejo deportivo" para "club de pádel") no suma. Los `types` secundarios no suman relevancia: en la validación real, `event_venue` (un espacio para eventos) coincidía con "organizadores de eventos" y llevaba a "Pasaje Del Sol" a prioridad alta. Un `primaryType` con una coincidencia de prefijo de ese tipo sí sumaría 10.
+- La calificación no usa `businessStatus`: los negocios cerrados ya se excluyen en `google-places.ts`, antes de calificar.
+- La validación de factualidad de los mensajes es estructural (ids citados, números, patrones prohibidos): no entiende semántica. Una paráfrasis que exagere un hecho citado correctamente (o una afirmación que Claude no declare como claim) puede pasar, por eso la UI muestra cada claim con su fuente para revisión humana antes de copiar.
+- Los mensajes no se envían: no hay integración con WhatsApp ni email.
+- No hay aprobación persistente, historial ni dashboard (Fase 9, no iniciada).

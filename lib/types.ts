@@ -248,3 +248,167 @@ export const ProspectingPlanSchema = z.object({
   rationale: z.string().min(1),
 });
 export type ProspectingPlan = z.infer<typeof ProspectingPlanSchema>;
+
+/**
+ * Criterio del scoring de calificación (Fase 7) al que suma una evidencia.
+ * Pesos máximos fijos (ver lib/qualification/qualify-prospects.ts):
+ * relevance 30, location 20, contact 20, completeness 15, signals 15.
+ */
+export const QualificationCriterionSchema = z.enum([
+  "relevance",
+  "location",
+  "contact",
+  "completeness",
+  "signals",
+]);
+export type QualificationCriterion = z.infer<typeof QualificationCriterionSchema>;
+
+/**
+ * Una señal que justifica (o no) la prioridad de un prospecto. Mismo
+ * vocabulario de procedencia que Claim (fact/inference/assumption), con una
+ * regla adicional: solo un "fact" puede sumar puntos. Una inferencia o un
+ * supuesto puede mostrarse, pero nunca subir el score.
+ */
+export const QualificationEvidenceSchema = z
+  .object({
+    text: z.string().min(1),
+    source: ClaimSourceSchema,
+    /** Criterio al que suma `points`. Ausente en evidencias que no puntúan. */
+    criterion: QualificationCriterionSchema.optional(),
+    /** Puntos que aporta al score. Siempre 0 si `source` no es "fact". */
+    points: z.number().int().min(0),
+    /** Datos concretos en los que se apoya (ej: "prospect.phone", "answers.targetArea"). */
+    basedOn: z.array(z.string().min(1)).min(1),
+  })
+  .refine((evidence) => evidence.source === "fact" || evidence.points === 0, {
+    message: "Solo una evidencia 'fact' puede sumar puntos.",
+  })
+  .refine((evidence) => evidence.points === 0 || evidence.criterion !== undefined, {
+    message: "Una evidencia que suma puntos tiene que indicar su criterio.",
+  });
+export type QualificationEvidence = z.infer<typeof QualificationEvidenceSchema>;
+
+/** Prioridad de prospección derivada del score con thresholds fijos (no la decide ningún modelo). */
+export const ProspectPrioritySchema = z.enum(["high", "medium", "low"]);
+export type ProspectPriority = z.infer<typeof ProspectPrioritySchema>;
+
+export const QualificationBreakdownSchema = z.object({
+  relevance: z.number().int().min(0).max(30),
+  location: z.number().int().min(0).max(20),
+  contact: z.number().int().min(0).max(20),
+  completeness: z.number().int().min(0).max(15),
+  signals: z.number().int().min(0).max(15),
+});
+export type QualificationBreakdown = z.infer<typeof QualificationBreakdownSchema>;
+
+/**
+ * Calificación de un prospecto (Fase 7). `score` es prioridad de
+ * prospección según señales observables — NO una probabilidad de
+ * conversión. Las invariantes (score = suma del breakdown = suma de los
+ * puntos de la evidencia, por criterio) se validan acá para que nadie pueda
+ * presentar un número que no se explique con la evidencia.
+ */
+export const ProspectQualificationSchema = z
+  .object({
+    score: z.number().int().min(0).max(100),
+    priority: ProspectPrioritySchema,
+    breakdown: QualificationBreakdownSchema,
+    evidence: z.array(QualificationEvidenceSchema),
+    /** Información relevante que no conocemos con los datos disponibles. */
+    unknowns: z.array(z.string().min(1)),
+    summary: z.string().min(1),
+  })
+  .refine(
+    (q) => q.score === Object.values(q.breakdown).reduce((sum, points) => sum + points, 0),
+    { message: "score tiene que ser la suma del breakdown." }
+  )
+  .refine(
+    (q) =>
+      QualificationCriterionSchema.options.every(
+        (criterion) =>
+          q.breakdown[criterion] ===
+          q.evidence
+            .filter((evidence) => evidence.criterion === criterion)
+            .reduce((sum, evidence) => sum + evidence.points, 0)
+      ),
+    { message: "Cada criterio del breakdown tiene que coincidir con los puntos de su evidencia." }
+  );
+export type ProspectQualification = z.infer<typeof ProspectQualificationSchema>;
+
+/**
+ * Prospect + su calificación. Extiende ProspectSchema sin tocar ningún
+ * campo existente: un consumidor que solo conoce Prospect sigue funcionando.
+ */
+export const QualifiedProspectSchema = ProspectSchema.extend({
+  qualification: ProspectQualificationSchema,
+});
+export type QualifiedProspect = z.infer<typeof QualifiedProspectSchema>;
+
+/**
+ * Canal para el que se redacta un mensaje comercial (Fase 8). Solo define el
+ * FORMATO (corto, conversacional): el proyecto no envía mensajes por ningún
+ * canal.
+ */
+export const SalesMessageChannelSchema = z.enum(["whatsapp"]);
+export type SalesMessageChannel = z.infer<typeof SalesMessageChannelSchema>;
+
+/**
+ * Sobre qué es una afirmación del mensaje:
+ * - "prospect": algo sobre el negocio contactado. Solo puede citar hechos
+ *   reales del Prospect (Google Places) o evidencia "fact" de su qualification.
+ * - "offering": algo sobre el producto/servicio del usuario. Puede citar sus
+ *   respuestas o la MarketingStrategy (nunca supuestos).
+ */
+export const SalesMessageClaimSubjectSchema = z.enum(["prospect", "offering"]);
+export type SalesMessageClaimSubject = z.infer<typeof SalesMessageClaimSubjectSchema>;
+
+/**
+ * Lo que devuelve Claude (Structured Output) antes de pasar por la
+ * validación de factualidad del código. Cada claim cita, por id, los datos
+ * del contexto en los que se apoya: el código verifica que existan y que
+ * sean de una fuente permitida — no se confía solo en el prompt.
+ */
+export const SalesMessageDraftSchema = z.object({
+  /** Mensaje completo, listo para copiar. */
+  message: z.string().min(1),
+  /** Pregunta final de baja fricción. Tiene que aparecer literalmente en `message`. */
+  cta: z.string().min(1),
+  claims: z
+    .array(
+      z.object({
+        /** Fragmento literal de `message` que contiene la afirmación. */
+        quote: z.string().min(1),
+        about: SalesMessageClaimSubjectSchema,
+        /** Ids de los datos del contexto que la respaldan (ej: "prospect.website"). */
+        basedOn: z.array(z.string().min(1)).min(1),
+      })
+    )
+    .min(1),
+});
+export type SalesMessageDraft = z.infer<typeof SalesMessageDraftSchema>;
+
+/** Afirmación del mensaje ya validada, con su procedencia derivada por el código (no declarada por Claude). */
+export const SalesMessageClaimSchema = z.strictObject({
+  quote: z.string().min(1),
+  about: SalesMessageClaimSubjectSchema,
+  /** "fact" si todo lo citado es hecho; "inference" si cita alguna inferencia. Nunca "assumption". */
+  source: ClaimSourceSchema.exclude(["assumption"]),
+  basedOn: z.array(z.string().min(1)).min(1),
+});
+export type SalesMessageClaim = z.infer<typeof SalesMessageClaimSchema>;
+
+/**
+ * Mensaje comercial personalizado para un prospecto calificado (Fase 8).
+ * Se genera bajo demanda y NO se envía: el usuario lo revisa y lo copia.
+ */
+export const SalesMessageSchema = z.strictObject({
+  /** Identificador estable del prospecto: su `mapsUrl` de Google (el proyecto no tiene otro id). */
+  prospectId: z.string().min(1),
+  channel: SalesMessageChannelSchema,
+  message: z.string().min(1),
+  cta: z.string().min(1),
+  claims: z.array(SalesMessageClaimSchema).min(1),
+  /** Lo que no sabemos del prospecto (de su qualification): el mensaje no puede afirmarlo. */
+  unknowns: z.array(z.string().min(1)),
+});
+export type SalesMessage = z.infer<typeof SalesMessageSchema>;
