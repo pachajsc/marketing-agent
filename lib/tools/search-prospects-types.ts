@@ -13,6 +13,27 @@
 // MarketingStrategySchema.
 import { z } from "zod";
 
+/**
+ * Preferencia de cercanía: un centro (la ubicación real del dispositivo que
+ * busca, nunca inventada) más un radio en km. Un único objeto (no dos campos
+ * sueltos) a propósito: no tiene sentido un radio sin centro ni viceversa —
+ * así no existe un estado parcial inválido que validar aparte.
+ *
+ * Mapea a `locationBias.circle` en Google Places Text Search (New): es una
+ * preferencia, no una restricción dura — Google puede devolver resultados
+ * fuera del radio si no hay suficientes adentro (Text Search (New) no
+ * soporta un `locationRestriction` circular, solo rectangular). Ver
+ * google-places.ts.
+ */
+export const SearchProximitySchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  /** Máximo 50 km: límite real del radio de `locationBias.circle` en la API de Google (50 000 m). */
+  radiusKm: z.number().positive().max(50),
+});
+
+export type SearchProximity = z.infer<typeof SearchProximitySchema>;
+
 export const SearchProspectsInputSchema = z.object({
   /** Categoría/nicho de negocio a buscar (ej: "gimnasios", "estudios contables"). */
   category: z.string().trim().min(1, "category es obligatorio."),
@@ -24,6 +45,8 @@ export const SearchProspectsInputSchema = z.object({
    * pageSize de Text Search (New) sin paginar — ver google-places.ts.
    */
   limit: z.number().int().positive().max(20).optional(),
+  /** Opcional: preferencia de cercanía a la ubicación real del dispositivo que busca. */
+  proximity: SearchProximitySchema.optional(),
 });
 
 export type SearchProspectsInput = z.infer<typeof SearchProspectsInputSchema>;

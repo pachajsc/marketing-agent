@@ -65,7 +65,7 @@ const ALWAYS_UNKNOWN = [
   "Quién toma las decisiones de compra.",
   "Presupuesto disponible e intención de compra.",
   "Tamaño del negocio, facturación y cantidad de clientes.",
-  "Actividad reciente: la cantidad de reseñas de Google es acumulada.",
+  "Actividad reciente: la cantidad de reseñas es acumulada.",
   "Distancia geográfica: no hay coordenadas, solo la dirección publicada.",
 ];
 
@@ -157,7 +157,7 @@ function relevanceEvidence(prospect: Prospect, answers: QualificationAnswers): Q
   if (prospect.primaryType && primaryTypeHits.length > 0) {
     evidence.push(
       fact(
-        `El tipo principal de Google ("${prospect.primaryType}") coincide textualmente con la categoría buscada en: ${primaryTypeHits.join(", ")}.`,
+        `El tipo de negocio ("${prospect.primaryType}") coincide textualmente con la categoría buscada en: ${primaryTypeHits.join(", ")}.`,
         ["prospect.primaryType", "answers.businessCategoryToTarget"],
         "relevance",
         10
@@ -168,7 +168,7 @@ function relevanceEvidence(prospect: Prospect, answers: QualificationAnswers): Q
   if (evidence.length === 0) {
     evidence.push(
       fact(
-        `Ni el nombre ni el tipo principal de Google coinciden textualmente con la categoría buscada ("${category}"): con estos datos no se puede confirmar su relevancia.`,
+        `Ni el nombre ni el tipo de negocio coinciden textualmente con la categoría buscada ("${category}"): con estos datos no se puede confirmar su relevancia.`,
         ["prospect.name", "prospect.primaryType", "answers.businessCategoryToTarget"]
       )
     );
@@ -211,12 +211,12 @@ function locationEvidence(prospect: Prospect, answers: QualificationAnswers): Qu
 function contactEvidence(prospect: Prospect): QualificationEvidence[] {
   const evidence: QualificationEvidence[] = [];
   if (prospect.phone) {
-    evidence.push(fact(`Teléfono publicado en Google: ${prospect.phone}.`, ["prospect.phone"], "contact", 10));
+    evidence.push(fact(`Teléfono publicado: ${prospect.phone}.`, ["prospect.phone"], "contact", 10));
   }
   if (prospect.website) {
-    evidence.push(fact("Sitio web publicado en Google.", ["prospect.website"], "contact", 10));
+    evidence.push(fact("Sitio web publicado.", ["prospect.website"], "contact", 10));
   }
-  evidence.push(fact("Dirección y link de Google Maps disponibles.", ["prospect.address", "prospect.mapsUrl"]));
+  evidence.push(fact("Dirección y ubicación disponibles.", ["prospect.address", "prospect.mapsUrl"]));
   if (prospect.phone && prospect.website) {
     evidence.push({
       text: "Al tener teléfono y sitio web publicados, hay más de una vía para un primer contacto.",
@@ -237,8 +237,8 @@ function completenessEvidence(prospect: Prospect): QualificationEvidence {
   const present = fields.filter((field) => field.present);
   const text =
     present.length > 0
-      ? `Google devolvió ${present.length} de 3 datos comerciales complementarios: ${present.map((field) => field.label).join(", ")}.`
-      : "Google no devolvió rating, cantidad de reseñas ni tipo principal.";
+      ? `Tenemos ${present.length} de 3 datos comerciales complementarios: ${present.map((field) => field.label).join(", ")}.`
+      : "No tenemos rating, cantidad de reseñas ni tipo principal.";
   return fact(text, fields.map((field) => field.path), "completeness", present.length * 5);
 }
 
@@ -249,7 +249,7 @@ function signalsEvidence(prospect: Prospect): QualificationEvidence[] {
     const points = count >= 100 ? 10 : count >= 20 ? 5 : 0;
     evidence.push(
       fact(
-        `Tiene ${count} reseñas acumuladas en Google (no indica actividad reciente).`,
+        `Tiene ${count} reseñas acumuladas (no indica actividad reciente).`,
         ["prospect.userRatingCount"],
         "signals",
         points
@@ -261,8 +261,8 @@ function signalsEvidence(prospect: Prospect): QualificationEvidence[] {
     evidence.push(
       fact(
         qualifies
-          ? `Rating ${prospect.rating} en Google con al menos 20 reseñas.`
-          : `Rating ${prospect.rating} en Google${(count ?? 0) < 20 ? ", con menos de 20 reseñas" : ""}.`,
+          ? `Rating ${prospect.rating} con al menos 20 reseñas.`
+          : `Rating ${prospect.rating}${(count ?? 0) < 20 ? ", con menos de 20 reseñas" : ""}.`,
         ["prospect.rating", "prospect.userRatingCount"],
         "signals",
         qualifies ? 5 : 0
@@ -274,11 +274,11 @@ function signalsEvidence(prospect: Prospect): QualificationEvidence[] {
 
 function unknownsFor(prospect: Prospect): string[] {
   const missing: string[] = [];
-  if (!prospect.phone) missing.push("Teléfono: Google no lo devolvió.");
-  if (!prospect.website) missing.push("Sitio web: Google no lo devolvió.");
-  if (prospect.rating === undefined) missing.push("Rating: Google no lo devolvió.");
-  if (prospect.userRatingCount === undefined) missing.push("Cantidad de reseñas: Google no la devolvió.");
-  if (prospect.primaryType === undefined) missing.push("Tipo principal del negocio: Google no lo devolvió.");
+  if (!prospect.phone) missing.push("Teléfono: no está disponible.");
+  if (!prospect.website) missing.push("Sitio web: no está disponible.");
+  if (prospect.rating === undefined) missing.push("Rating: no está disponible.");
+  if (prospect.userRatingCount === undefined) missing.push("Cantidad de reseñas: no está disponible.");
+  if (prospect.primaryType === undefined) missing.push("Tipo principal del negocio: no está disponible.");
   if (prospect.phone || prospect.website) missing.push("Si el teléfono o el sitio web publicados están activos.");
   return [...missing, ...ALWAYS_UNKNOWN];
 }
@@ -291,7 +291,7 @@ function summaryFor(
 ): string {
   const relevanceSources = evidence
     .filter((item) => item.criterion === "relevance" && item.points > 0)
-    .map((item) => (item.basedOn.includes("prospect.name") ? "el nombre" : "el tipo principal de Google"));
+    .map((item) => (item.basedOn.includes("prospect.name") ? "el nombre" : "el tipo de negocio"));
   const relevance =
     relevanceSources.length > 0
       ? `coincide textualmente con la categoría buscada en ${relevanceSources.join(" y ")}`

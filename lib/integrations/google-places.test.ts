@@ -156,4 +156,48 @@ describe("searchProspects", () => {
     await expect(promise).rejects.toBeInstanceOf(GooglePlacesRequestError);
     await expect(promise).rejects.toMatchObject({ status: 0 });
   });
+
+  it("sin proximity, no manda locationBias en el request a Google", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({}));
+
+    await searchProspects({ category: "gimnasios", area: "CABA" });
+
+    const [, requestInit] = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse(requestInit!.body as string);
+    expect(body.locationBias).toBeUndefined();
+  });
+
+  it("con proximity, manda locationBias.circle con el centro real y el radio en metros", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({}));
+
+    await searchProspects({
+      category: "gimnasios",
+      area: "CABA",
+      proximity: { lat: -34.6, lng: -58.4, radiusKm: 10 },
+    });
+
+    const [, requestInit] = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse(requestInit!.body as string);
+    expect(body.locationBias).toEqual({
+      circle: { center: { latitude: -34.6, longitude: -58.4 }, radius: 10_000 },
+    });
+  });
+
+  it("el radio nunca supera los 50 000 m (límite real de locationBias.circle en la API de Google), aunque se pida más", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({}));
+
+    // SearchProximitySchema ya rechaza radiusKm > 50, pero esta función no
+    // vuelve a validar su input (confía en que el caller ya lo hizo) — el
+    // clamp es una segunda red de seguridad para no mandarle a Google un
+    // radio inválido si algo cambiara en la validación de arriba.
+    await searchProspects({
+      category: "gimnasios",
+      area: "CABA",
+      proximity: { lat: 0, lng: 0, radiusKm: 999 },
+    });
+
+    const [, requestInit] = vi.mocked(fetch).mock.calls[0];
+    const body = JSON.parse(requestInit!.body as string);
+    expect(body.locationBias.circle.radius).toBe(50_000);
+  });
 });

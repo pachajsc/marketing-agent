@@ -70,7 +70,7 @@ describe("qualifyProspect — scoring determinista", () => {
 
     expect(qualification.breakdown.contact).toBe(10);
     expect(qualification.score).toBe(90);
-    expect(qualification.unknowns).toContain("Teléfono: Google no lo devolvió.");
+    expect(qualification.unknowns).toContain("Teléfono: no está disponible.");
     expect(qualification.evidence.some((e) => e.basedOn.includes("prospect.phone") && e.points > 0)).toBe(false);
     expect(qualification.summary).toContain("sin teléfono");
   });
@@ -81,7 +81,7 @@ describe("qualifyProspect — scoring determinista", () => {
 
     expect(qualification.breakdown.contact).toBe(10);
     expect(qualification.score).toBe(90);
-    expect(qualification.unknowns).toContain("Sitio web: Google no lo devolvió.");
+    expect(qualification.unknowns).toContain("Sitio web: no está disponible.");
     expect(qualification.evidence.some((e) => e.source === "inference")).toBe(false);
   });
 
@@ -113,9 +113,9 @@ describe("qualifyProspect — scoring determinista", () => {
     expect(qualification.score).toBe(55);
     expect(qualification.unknowns).toEqual(
       expect.arrayContaining([
-        "Sitio web: Google no lo devolvió.",
-        "Rating: Google no lo devolvió.",
-        "Cantidad de reseñas: Google no la devolvió.",
+        "Sitio web: no está disponible.",
+        "Rating: no está disponible.",
+        "Cantidad de reseñas: no está disponible.",
       ])
     );
   });

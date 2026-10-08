@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SearchProspectsInputSchema } from "./search-prospects-types";
+import { SearchProspectsInputSchema, SearchProximitySchema } from "./search-prospects-types";
 
 describe("SearchProspectsInputSchema", () => {
   it("acepta category y area válidas sin limit", () => {
@@ -72,5 +72,42 @@ describe("SearchProspectsInputSchema", () => {
   it("rechaza cuando falta category o area", () => {
     expect(SearchProspectsInputSchema.safeParse({ area: "CABA" }).success).toBe(false);
     expect(SearchProspectsInputSchema.safeParse({ category: "gimnasios" }).success).toBe(false);
+  });
+
+  it("acepta proximity válida", () => {
+    const result = SearchProspectsInputSchema.safeParse({
+      category: "gimnasios",
+      area: "CABA",
+      proximity: { lat: -34.6, lng: -58.4, radiusKm: 10 },
+    });
+
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("SearchProximitySchema", () => {
+  it("acepta coordenadas y radio válidos", () => {
+    expect(SearchProximitySchema.safeParse({ lat: -34.6, lng: -58.4, radiusKm: 10 }).success).toBe(true);
+  });
+
+  it("rechaza lat/lng fuera de rango", () => {
+    expect(SearchProximitySchema.safeParse({ lat: 91, lng: 0, radiusKm: 10 }).success).toBe(false);
+    expect(SearchProximitySchema.safeParse({ lat: -91, lng: 0, radiusKm: 10 }).success).toBe(false);
+    expect(SearchProximitySchema.safeParse({ lat: 0, lng: 181, radiusKm: 10 }).success).toBe(false);
+    expect(SearchProximitySchema.safeParse({ lat: 0, lng: -181, radiusKm: 10 }).success).toBe(false);
+  });
+
+  it("rechaza radiusKm fuera de rango (0, negativo, > 50)", () => {
+    for (const radiusKm of [0, -1, 51]) {
+      expect(
+        SearchProximitySchema.safeParse({ lat: 0, lng: 0, radiusKm }).success,
+        `radiusKm=${radiusKm} debería ser inválido`
+      ).toBe(false);
+    }
+  });
+
+  it("rechaza si falta cualquiera de los tres campos (centro sin radio, o viceversa, es un estado inválido)", () => {
+    expect(SearchProximitySchema.safeParse({ lat: 0, lng: 0 }).success).toBe(false);
+    expect(SearchProximitySchema.safeParse({ radiusKm: 10 }).success).toBe(false);
   });
 });

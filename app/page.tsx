@@ -4,7 +4,7 @@ import Link from "next/link";
 const STEPS = [
   { title: "Contanos qué vendés", detail: "Tu producto o servicio y el problema que resuelve." },
   { title: "A quién y dónde", detail: "El tipo de cliente que buscás y la zona." },
-  { title: "Prospectos reales, priorizados", detail: "Negocios reales de Google Maps, ordenados por a quién contactar primero." },
+  { title: "Prospectos reales, priorizados", detail: "Negocios reales cerca de tu zona, ordenados por a quién contactar primero." },
   { title: "Un mensaje listo para revisar", detail: "Personalizado con datos reales del prospecto. Lo revisás, lo aprobás y lo copiás." },
 ];
 

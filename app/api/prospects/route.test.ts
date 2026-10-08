@@ -70,6 +70,32 @@ describe("POST /api/prospects", () => {
     expect(mockRunProspectingAgent).not.toHaveBeenCalled();
   });
 
+  it("proximity con forma inválida -> 400, sin invocar al Agent", async () => {
+    const response = await POST(
+      postRequest({ answers: validAnswers, proximity: { lat: 999, lng: 0, radiusKm: 10 } })
+    );
+
+    expect(response.status).toBe(400);
+    expect(mockRunProspectingAgent).not.toHaveBeenCalled();
+  });
+
+  it("proximity ausente -> se llama al Agent con proximity undefined (búsqueda solo por zona, comportamiento preexistente)", async () => {
+    mockRunProspectingAgent.mockResolvedValueOnce({ prospects: [] });
+
+    await POST(postRequest({ answers: validAnswers }));
+
+    expect(mockRunProspectingAgent).toHaveBeenCalledWith(validAnswers, undefined, { proximity: undefined });
+  });
+
+  it("proximity válida -> se pasa intacta al Agent", async () => {
+    mockRunProspectingAgent.mockResolvedValueOnce({ prospects: [] });
+    const proximity = { lat: -34.6, lng: -58.4, radiusKm: 15 };
+
+    await POST(postRequest({ answers: validAnswers, proximity }));
+
+    expect(mockRunProspectingAgent).toHaveBeenCalledWith(validAnswers, undefined, { proximity });
+  });
+
   it("(12) input válido -> 200 con los prospects del Agent intactos, cada uno con su qualification (Fase 7)", async () => {
     const prospects: Prospect[] = [
       { name: "Club Norte", address: "Calle 1, CABA", mapsUrl: "https://maps.google.com/?cid=1" },

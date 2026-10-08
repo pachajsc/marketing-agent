@@ -211,6 +211,32 @@ describe("runProspectingAgent", () => {
     });
   });
 
+  it("aplica searchOptions.proximity uniformemente a cada búsqueda ejecutada (nunca la decide Claude)", async () => {
+    mockParse.mockResolvedValueOnce(planResponse([factSearch()]));
+    mockRunSearchProspectsTool.mockResolvedValueOnce([]);
+    const proximity = { lat: -34.6, lng: -58.4, radiusKm: 10 };
+
+    await runProspectingAgent(baseAnswers, undefined, { proximity });
+
+    expect(mockRunSearchProspectsTool).toHaveBeenCalledWith({
+      category: "clubes de padel",
+      area: "Ciudad de Buenos Aires",
+      limit: undefined,
+      proximity,
+    });
+  });
+
+  it("sin searchOptions, la búsqueda se ejecuta sin proximity (comportamiento preexistente intacto)", async () => {
+    mockParse.mockResolvedValueOnce(planResponse([factSearch()]));
+    mockRunSearchProspectsTool.mockResolvedValueOnce([]);
+
+    await runProspectingAgent(baseAnswers);
+
+    expect(mockRunSearchProspectsTool).toHaveBeenCalledWith(
+      expect.not.objectContaining({ proximity: expect.anything() })
+    );
+  });
+
   it("lanza un error legible si Claude no devuelve un plan parseable", async () => {
     mockParse.mockResolvedValueOnce({ parsed_output: null, stop_reason: "max_tokens" });
 

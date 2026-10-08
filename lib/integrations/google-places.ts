@@ -166,6 +166,20 @@ export async function searchProspects(input: SearchProspectsInput): Promise<Pros
   const pageSize = resolvePageSize(input.limit);
   const textQuery = `${input.category.trim()} en ${input.area.trim()}`;
 
+  // locationBias (no locationRestriction): Text Search (New) solo soporta
+  // restricción dura con rectángulo, nunca con círculo — un radio en km
+  // alrededor de un punto solo puede pedirse como preferencia, no como
+  // corte estricto. Documentado así para no prometerle al usuario una
+  // garantía que la API no puede dar.
+  const locationBias = input.proximity
+    ? {
+        circle: {
+          center: { latitude: input.proximity.lat, longitude: input.proximity.lng },
+          radius: Math.min(input.proximity.radiusKm * 1000, 50_000),
+        },
+      }
+    : undefined;
+
   let response: Response;
   try {
     response = await fetch(TEXT_SEARCH_URL, {
@@ -175,7 +189,7 @@ export async function searchProspects(input: SearchProspectsInput): Promise<Pros
         "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask": FIELD_MASK,
       },
-      body: JSON.stringify({ textQuery, pageSize, languageCode: "es" }),
+      body: JSON.stringify({ textQuery, pageSize, languageCode: "es", locationBias }),
     });
   } catch (error) {
     throw new GooglePlacesRequestError(

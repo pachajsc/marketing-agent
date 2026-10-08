@@ -49,6 +49,19 @@ import {
   type QuestionnaireAnswers,
 } from "@/lib/types";
 import { runSearchProspectsTool } from "@/lib/tools/search-prospects-tool";
+import type { SearchProximity } from "@/lib/tools/search-prospects-types";
+
+/**
+ * Preferencia de cercanía a aplicar a toda búsqueda ejecutada en esta
+ * llamada. Nunca la decide Claude: es un dato real del dispositivo que
+ * busca (ubicación + radio elegido en la UI), aplicado uniformemente en
+ * código a cada search del plan ya groundeado — mismo principio que
+ * category/area en groundProspectingSearch, pero este dato ni siquiera pasa
+ * por el prompt.
+ */
+export interface ProspectingSearchOptions {
+  proximity?: SearchProximity;
+}
 
 const client = new Anthropic();
 
@@ -162,7 +175,8 @@ function groundProspectingSearch(
  */
 export async function runProspectingAgent(
   answers: QuestionnaireAnswers,
-  strategy?: MarketingStrategy
+  strategy?: MarketingStrategy,
+  searchOptions?: ProspectingSearchOptions
 ): Promise<ProspectingResult> {
   const response = await client.messages.parse({
     model: MODEL,
@@ -200,7 +214,12 @@ export async function runProspectingAgent(
 
   const results = await Promise.all(
     Array.from(uniqueByCategoryArea.values()).map((search) =>
-      runSearchProspectsTool({ category: search.category, area: search.area, limit: search.limit })
+      runSearchProspectsTool({
+        category: search.category,
+        area: search.area,
+        limit: search.limit,
+        proximity: searchOptions?.proximity,
+      })
     )
   );
 

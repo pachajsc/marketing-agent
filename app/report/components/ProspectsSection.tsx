@@ -62,9 +62,44 @@ const PRIMARY_BUTTON =
 const LINK_BUTTON =
   "text-xs font-medium text-zinc-600 underline hover:text-black dark:text-zinc-400 dark:hover:text-white";
 
+// Límites del radio de búsqueda: mismo tope que SearchProximitySchema
+// (lib/tools/search-prospects-types.ts) — el límite real del radio de
+// locationBias.circle en la API de Google (50 km).
+const MIN_RADIUS_KM = 1;
+const MAX_RADIUS_KM = 50;
+const DEFAULT_RADIUS_KM = 10;
+
+type LocationNote = null | "unsupported" | "denied" | "unavailable";
+
+const LOCATION_NOTE_MESSAGE: Record<Exclude<LocationNote, null>, string> = {
+  unsupported: "Tu navegador no permite compartir tu ubicación: buscamos solo por la zona del cuestionario.",
+  denied: "No compartiste tu ubicación: buscamos solo por la zona del cuestionario.",
+  unavailable: "No pudimos obtener tu ubicación: buscamos solo por la zona del cuestionario.",
+};
+
+/** Sentinel — no hay un tipo de error nativo para "este navegador no tiene Geolocation API". */
+class GeolocationUnsupportedError extends Error {}
+
+/** Promesa sobre la Geolocation API. Rechaza con el GeolocationPositionError real (para distinguir permiso denegado de otras fallas) o con GeolocationUnsupportedError si la API no existe. */
+function getCurrentPosition(): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    if (!("geolocation" in navigator)) {
+      reject(new GeolocationUnsupportedError());
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: false,
+      timeout: 8_000,
+      maximumAge: 5 * 60_000,
+    });
+  });
+}
+
 export function ProspectsSection({ answers, strategy }: ProspectsSectionProps) {
   const [state, setState] = useState<ProspectsState>({ status: "idle" });
   const [workspace, dispatch] = useReducer(workspaceReducer, initialWorkspaceState);
+  const [radiusKm, setRadiusKm] = useState(DEFAULT_RADIUS_KM);
+  const [locationNote, setLocationNote] = useState<LocationNote>(null);
   const category = answers.businessCategoryToTarget;
   const area = answers.targetArea;
   const hasProgress = Object.keys(workspace).length > 0;
@@ -75,11 +110,30 @@ export function ProspectsSection({ answers, strategy }: ProspectsSectionProps) {
     // Una nueva búsqueda reemplaza la lista: sus etapas y mensajes se reinician.
     dispatch({ type: "reset" });
     setState({ status: "loading" });
+
+    // La ubicación es un refinamiento, no un requisito: si el navegador no
+    // la soporta, el usuario la niega, o falla por cualquier otro motivo, la
+    // búsqueda sigue funcionando igual que siempre (solo por categoría+zona).
+    let proximity: { lat: number; lng: number; radiusKm: number } | undefined;
+    try {
+      const position = await getCurrentPosition();
+      proximity = { lat: position.coords.latitude, lng: position.coords.longitude, radiusKm };
+      setLocationNote(null);
+    } catch (error) {
+      if (error instanceof GeolocationUnsupportedError) {
+        setLocationNote("unsupported");
+      } else if (error instanceof GeolocationPositionError && error.code === error.PERMISSION_DENIED) {
+        setLocationNote("denied");
+      } else {
+        setLocationNote("unavailable");
+      }
+    }
+
     try {
       const response = await fetch("/api/prospects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers, strategy }),
+        body: JSON.stringify({ answers, strategy, proximity }),
       });
 
       if (!response.ok) {
@@ -101,7 +155,7 @@ export function ProspectsSection({ answers, strategy }: ProspectsSectionProps) {
         <h2 className="text-lg font-semibold text-black dark:text-white">¿A quién contactar primero?</h2>
         {category && (
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            Buscamos &quot;{category}&quot; en &quot;{area}&quot; en Google Maps y los ordenamos por prioridad.
+            Buscamos &quot;{category}&quot; cerca de &quot;{area}&quot; y los ordenamos por prioridad.
           </p>
         )}
       </div>
@@ -114,22 +168,48 @@ export function ProspectsSection({ answers, strategy }: ProspectsSectionProps) {
       ) : (
         <>
           {state.status !== "loading" && (
-            <div className="flex flex-col gap-1">
-              <button type="button" onClick={handleSearch} className={`self-start ${PRIMARY_BUTTON}`}>
-                {state.status === "idle" ? "Buscar prospectos" : "Buscar de nuevo"}
-              </button>
-              {state.status === "ready" && hasProgress && (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Buscar de nuevo reinicia las etapas y los mensajes de esta lista.
-                </p>
-              )}
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+                Buscar hasta
+                <input
+                  type="number"
+                  min={MIN_RADIUS_KM}
+                  max={MAX_RADIUS_KM}
+                  value={radiusKm}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    if (Number.isNaN(value)) return;
+                    setRadiusKm(Math.min(Math.max(value, MIN_RADIUS_KM), MAX_RADIUS_KM));
+                  }}
+                  className="w-16 rounded border border-zinc-300 bg-white px-2 py-1 text-center text-sm text-black dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
+                />
+                km de donde estás ahora
+              </label>
+
+              <div className="flex flex-col gap-1">
+                <button type="button" onClick={handleSearch} className={`self-start ${PRIMARY_BUTTON}`}>
+                  {state.status === "idle" ? "Buscar prospectos" : "Buscar de nuevo"}
+                </button>
+                {state.status === "ready" && hasProgress && (
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Buscar de nuevo reinicia las etapas y los mensajes de esta lista.
+                  </p>
+                )}
+                {locationNote && (
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">{LOCATION_NOTE_MESSAGE[locationNote]}</p>
+                )}
+              </div>
             </div>
           )}
 
           {state.status === "loading" && (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Buscando negocios reales en Google Maps y calificándolos… suele tardar entre 10 y 30 segundos.
-            </p>
+            <div className="flex flex-col items-center gap-3 py-2">
+              <RadarSearchIndicator />
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                Buscando negocios reales cerca de la zona y calificándolos… suele tardar entre 10 y 30
+                segundos.
+              </p>
+            </div>
           )}
 
           {state.status === "error" && (
@@ -273,7 +353,7 @@ function ProspectCard({
 
       {prospect.primaryType && (
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          Tipo en Google: {prospect.primaryType.replaceAll("_", " ")}
+          Tipo de negocio: {prospect.primaryType.replaceAll("_", " ")}
         </p>
       )}
 
@@ -305,7 +385,7 @@ function ProspectCard({
         rel="noreferrer"
         className="block text-sm text-blue-600 underline dark:text-blue-400"
       >
-        Ver en Google Maps
+        Ver ubicación
       </a>
 
       {signals.length > 0 && (
@@ -360,6 +440,22 @@ function ProspectCard({
         dispatch={(action) => dispatch({ type: "panel", prospectId, action })}
         locked={work.contacted}
       />
+    </div>
+  );
+}
+
+/**
+ * Indicador de carga: una "pelota" en el centro con dos anillos que se
+ * expanden y se desvanecen, estilo radar — comunica "buscando por cercanía"
+ * sin necesitar texto adicional. Puramente decorativo (aria-hidden): el
+ * estado de carga real ya lo anuncia el texto que lo acompaña.
+ */
+function RadarSearchIndicator() {
+  return (
+    <div className="relative flex h-20 w-20 items-center justify-center" aria-hidden="true">
+      <span className="motion-reduce:animate-none absolute inline-flex h-full w-full animate-ping rounded-full bg-black/10 dark:bg-white/10" />
+      <span className="motion-reduce:animate-none absolute inline-flex h-2/3 w-2/3 animate-ping rounded-full bg-black/15 [animation-delay:300ms] dark:bg-white/15" />
+      <span className="relative inline-flex h-3 w-3 rounded-full bg-black dark:bg-white" />
     </div>
   );
 }

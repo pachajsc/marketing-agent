@@ -24,6 +24,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { runProspectingAgent } from "@/lib/agent/prospecting-agent";
 import { McpProspectingConfigError, McpProspectingRequestError } from "@/lib/mcp/prospecting-mcp-client";
 import { qualifyProspects } from "@/lib/qualification/qualify-prospects";
+import { SearchProximitySchema } from "@/lib/tools/search-prospects-types";
 import { MarketingStrategySchema, type QuestionnaireAnswers } from "@/lib/types";
 
 // Valida únicamente los campos de QuestionnaireAnswers que ProspectingAgent
@@ -40,9 +41,9 @@ const ProspectingAnswersSchema = z.object({
 });
 
 export async function POST(request: Request) {
-  let body: { answers?: unknown; strategy?: unknown };
+  let body: { answers?: unknown; strategy?: unknown; proximity?: unknown };
   try {
-    body = (await request.json()) as { answers?: unknown; strategy?: unknown };
+    body = (await request.json()) as { answers?: unknown; strategy?: unknown; proximity?: unknown };
   } catch {
     return Response.json({ error: "Body inválido: se esperaba JSON." }, { status: 400 });
   }
@@ -77,8 +78,23 @@ export async function POST(request: Request) {
     strategy = parsedStrategy.data;
   }
 
+  // `proximity` es opcional (solo llega cuando el navegador compartió la
+  // ubicación real del dispositivo — ver ProspectsSection.tsx), pero si está
+  // presente tiene que ser válido: mismo criterio que `strategy` arriba.
+  let proximity;
+  if (body.proximity !== undefined) {
+    const parsedProximity = SearchProximitySchema.safeParse(body.proximity);
+    if (!parsedProximity.success) {
+      return Response.json(
+        { error: "Input inválido: 'proximity' no tiene la forma esperada." },
+        { status: 400 }
+      );
+    }
+    proximity = parsedProximity.data;
+  }
+
   try {
-    const result = await runProspectingAgent(answers, strategy);
+    const result = await runProspectingAgent(answers, strategy, { proximity });
     return Response.json(qualifyProspects(result.prospects, answers));
   } catch (error) {
     // Mismo criterio que marketing-strategy/route.ts: loguear el detalle

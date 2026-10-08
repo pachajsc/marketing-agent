@@ -93,7 +93,7 @@ export const questionnaireSteps: QuestionnaireStepDef[] = [
         label: "¿Qué tipo de negocios, profesionales o personas querés encontrar para ofrecerles tu producto?",
         placeholder: "Ej: clubes de pádel, organizadores de torneos, complejos deportivos",
         helpText:
-          "Una categoría corta: es lo que vamos a buscar en Google Maps para encontrarte prospectos reales.",
+          "Una categoría corta: es lo que vamos a usar para encontrarte prospectos reales cerca de la zona que elijas.",
         required: true,
       },
       {
