@@ -412,3 +412,12 @@ export const SalesMessageSchema = z.strictObject({
   unknowns: z.array(z.string().min(1)),
 });
 export type SalesMessage = z.infer<typeof SalesMessageSchema>;
+
+/**
+ * Estado comercial de un prospecto guardado en la app (SaaS). Lo cambia el
+ * usuario (o la aprobación de un mensaje, para "ready"): sin WhatsApp no hay
+ * forma automática de saber si alguien respondió, así que "replied" y
+ * "qualified" son siempre marcas manuales. Ver lib/workspace/prospect-status.ts.
+ */
+export const ProspectStatusSchema = z.enum(["new", "ready", "contacted", "replied", "qualified", "rejected"]);
+export type ProspectStatus = z.infer<typeof ProspectStatusSchema>;

@@ -106,15 +106,10 @@ export const questionnaireSteps: QuestionnaireStepDef[] = [
           { value: "b2b", label: "Empresas (B2B)" },
         ],
       },
-      {
-        id: "idealCustomerDescription",
-        type: "textarea",
-        label: "¿Quién es el cliente ideal para tu producto o servicio? Describilo con tus palabras.",
-        placeholder:
-          "Ej: dueños de clubes de pádel que organizan torneos y hoy gestionan las inscripciones por WhatsApp",
-        helpText: "Opcional. Contá cómo es hoy, qué hace, cómo resuelve este problema actualmente.",
-        required: false,
-      },
+      // "¿Quién es el cliente ideal? Describilo" se sacó del formulario: en la
+      // práctica se respondía igual que la categoría de arriba. El campo
+      // (idealCustomerDescription) sigue siendo opcional en QuestionnaireAnswers,
+      // así que los perfiles que ya lo tienen no pierden el dato.
     ],
   },
   {
@@ -135,6 +130,10 @@ export const questionnaireSteps: QuestionnaireStepDef[] = [
         type: "choice",
         label: "¿Ya tenés clientes actualmente?",
         required: true,
+        // Si el objetivo es conseguir los primeros clientes, la respuesta ya
+        // está dada ("No, todavía no"): no se pregunta y se completa sola
+        // (ver applyImpliedAnswers).
+        visibleIf: (answers) => answers.mainGoal !== "first_customers",
         options: [
           { value: "none", label: "No, todavía no" },
           { value: "some", label: "Sí, algunos" },
@@ -206,4 +205,32 @@ export function isStepValid(
   return getVisibleFields(step, answers).every(
     (field) => !isFieldRequired(field, answers) || hasValue(answers, field.id)
   );
+}
+
+/**
+ * Completa las respuestas que se deducen de otras, para no preguntarlas dos
+ * veces: con el objetivo "Conseguir mis primeros clientes", "¿Ya tenés
+ * clientes?" es "No, todavía no". Si el objetivo cambia a otro, la pregunta
+ * vuelve a aparecer con ese valor precargado y se puede corregir.
+ */
+export function applyImpliedAnswers(answers: Partial<QuestionnaireAnswers>): Partial<QuestionnaireAnswers> {
+  if (answers.mainGoal === "first_customers" && answers.hasCustomersToday !== "none") {
+    return { ...answers, hasCustomersToday: "none" };
+  }
+  return answers;
+}
+
+/** Un paso es alcanzable si todos los anteriores están completos (para el stepper). */
+export function isStepReachable(index: number, answers: Partial<QuestionnaireAnswers>): boolean {
+  return questionnaireSteps.slice(0, index).every((step) => isStepValid(step, answers));
+}
+
+/** Avance según preguntas obligatorias visibles ya respondidas (0–100). */
+export function completionPercent(answers: Partial<QuestionnaireAnswers>): number {
+  const required = questionnaireSteps.flatMap((step) =>
+    getVisibleFields(step, answers).filter((field) => isFieldRequired(field, answers))
+  );
+  if (required.length === 0) return 100;
+  const answered = required.filter((field) => hasValue(answers, field.id)).length;
+  return Math.round((answered / required.length) * 100);
 }

@@ -11,6 +11,7 @@ import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { demoDelay, isDemoMode, loadDemoFixture } from "@/lib/demo/demo-mode";
 import { MarketingStrategySchema, type MarketingStrategy, type QuestionnaireAnswers } from "@/lib/types";
 
 // El SDK resuelve la API key automáticamente desde process.env.ANTHROPIC_API_KEY.
@@ -93,6 +94,12 @@ El resultado tiene que seguir siendo una estrategia accionable, no una lista de 
  * hace `client.messages.parse(...)` con el mismo schema.
  */
 export async function runMarketingAgent(answers: QuestionnaireAnswers): Promise<MarketingStrategy> {
+  // Modo demo: la estrategia real grabada, sin llamar a Claude (ver lib/demo/demo-mode.ts).
+  if (isDemoMode()) {
+    await demoDelay();
+    return loadDemoFixture().strategy;
+  }
+
   const response = await client.messages.parse({
     model: "claude-opus-5",
     max_tokens: 4096,

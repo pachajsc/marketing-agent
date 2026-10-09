@@ -1,26 +1,134 @@
 @import "tailwindcss";
 
+/*
+ * La app es de tema claro por escena (celular al sol). Las variantes dark:
+ * que quedan en componentes heredados pasan a depender de una clase .dark que
+ * nunca se aplica, así no tiñen de oscuro ninguna pantalla.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Mundo visual "Guía de calles" (ver DESIGN.md y el contrato en app/layout.tsx).
+ * La leyenda de una guía de bolsillo: tapa amarilla, papel de plano frío,
+ * tinta, y los colores del plano (avenida, agua, plaza) con un rol cada uno.
+ * Escena: celular a la luz del día → tema claro, sin modo oscuro en la app.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f4f6f3;
+  --foreground: #141414;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+  --color-tapa: #f2c12e; /* tapa de la guía: cabecera, resaltado, foco */
+  --color-tapa-hondo: #d9a514; /* tapa en sombra: borde y hover sobre amarillo */
+  --color-tinta: #141414; /* texto, placas, botón principal */
+  --color-grafito: #4f544f; /* texto secundario (verdoso, del papel) */
+  --color-lapiz: #697068; /* texto terciario y placeholders (≥4.5:1 sobre blanco) */
+  --color-plano: #f4f6f3; /* papel de plano: fondo */
+  --color-hoja: #ffffff; /* hoja impresa: superficies de contenido */
+  --color-renglon: #d8ddd6; /* filete: divisores y bordes */
+  --color-avenida: #c2312a; /* avenida: errores, descartar */
+  --color-agua: #2a63a6; /* agua: enlaces, "respondió" */
+  --color-plaza: #3f7f40; /* plaza: aprobado, calificado */
+
+  --font-sans: var(--font-archivo);
+  --font-mono: var(--font-archivo);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-archivo), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Superficies del navegador, tomadas de la leyenda. */
+::selection {
+  background: var(--color-tapa);
+  color: var(--color-tinta);
+}
+
+* {
+  caret-color: var(--color-tinta);
+  scrollbar-color: var(--color-renglon) transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-tinta);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--color-tapa);
+}
+
+a {
+  text-underline-offset: 0.2em;
+}
+
+/* Índice de la guía: el ancho condensado de Archivo, para nombres y placas. */
+.indice {
+  font-stretch: 75%;
+  letter-spacing: -0.01em;
+}
+
+/*
+ * Relleno de "Listo para contactar": el rayado de las manzanas en obra de un
+ * plano. Es el único rayado del sistema y siempre codifica ese estado.
+ */
+.rayado {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--color-tapa) 0 3px,
+    transparent 3px 6px
+  );
+}
+
+/* Brillo de la barra de progreso del cuestionario (ver ProgressBar.tsx). */
+@keyframes progress-shine {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+/* Entrada del índice: las entradas aparecen en orden, una vez, al cargar. */
+@keyframes entrada {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* El sello de "Contactado" se estampa: cae con un leve giro y se asienta. */
+@keyframes sello {
+  from {
+    opacity: 0;
+    transform: scale(1.35) rotate(-9deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(-6deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

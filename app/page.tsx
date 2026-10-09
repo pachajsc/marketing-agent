@@ -37,14 +37,23 @@ export default function Home() {
         </ol>
 
         <div className="flex flex-col gap-2">
-          <Link
-            href="/questionnaire"
-            className="self-start rounded-full bg-black px-6 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
-          >
-            Empezar
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/register"
+              className="rounded-full bg-black px-6 py-2 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+            >
+              Crear cuenta
+            </Link>
+            <Link href="/login" className="text-sm font-medium text-zinc-700 underline hover:text-black dark:text-zinc-300 dark:hover:text-white">
+              Iniciar sesión
+            </Link>
+            <Link href="/questionnaire" className="text-sm text-zinc-500 underline hover:text-black dark:text-zinc-400 dark:hover:text-white">
+              Probar sin cuenta
+            </Link>
+          </div>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Toma unos minutos. Nada se envía automáticamente: vos decidís a quién contactar.
+            Toma unos minutos. Nada se envía automáticamente: vos decidís a quién contactar. Sin cuenta, el resultado
+            no se guarda.
           </p>
         </div>
       </main>

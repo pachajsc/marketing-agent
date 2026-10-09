@@ -39,6 +39,7 @@ import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { demoDelay, isDemoMode, loadDemoFixture } from "@/lib/demo/demo-mode";
 import {
   ProspectingPlanSchema,
   type ClaimSource,
@@ -178,6 +179,13 @@ export async function runProspectingAgent(
   strategy?: MarketingStrategy,
   searchOptions?: ProspectingSearchOptions
 ): Promise<ProspectingResult> {
+  // Modo demo: los prospectos reales grabados de Google Places, sin llamar a
+  // Claude ni a Google (ver lib/demo/demo-mode.ts). Se califican igual que siempre.
+  if (isDemoMode()) {
+    await demoDelay(900);
+    return { prospects: loadDemoFixture().prospects };
+  }
+
   const response = await client.messages.parse({
     model: MODEL,
     max_tokens: 2048,

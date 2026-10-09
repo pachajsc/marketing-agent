@@ -17,10 +17,13 @@ Wizard (app/questionnaire/)
   → Report                           (app/report/page.tsx)
 ```
 
+App autenticada (SaaS): login/registro con Better Auth (`lib/server/auth.ts`), datos en SQLite local (`lib/server/db.ts`, `data/app.db`, esquema con `npm run db:migrate`). Rutas privadas en `app/(app)/`: `/dashboard`, `/prospects`, `/prospects/[id]`, `/strategy`, `/settings`.
+
 ## 3. Límites entre capas
 
-- La UI (`app/questionnaire/`, `app/report/page.tsx`) nunca llama a Claude directamente ni conoce `ANTHROPIC_API_KEY`: siempre pasa por `fetch` al Route Handler.
-- El `MarketingAgent` (`lib/agent/marketing-agent.ts`) se invoca únicamente desde `app/api/marketing-strategy/route.ts`.
+- La UI (`app/questionnaire/`, `app/report/page.tsx`, `app/(app)/`) nunca llama a Claude directamente ni conoce `ANTHROPIC_API_KEY`: pasa por `fetch` a un Route Handler o por una Server Action.
+- Los agentes (`lib/agent/*`) se invocan únicamente desde bordes de servidor: los Route Handlers de `app/api/` (flujo público por sesión del navegador) o las Server Actions de `app/(app)/actions.ts` (app autenticada, que persiste por usuario). Cada Server Action verifica la sesión con `requireUser()` (`lib/server/session.ts`); `proxy.ts` es solo un chequeo optimista.
+- Los datos por usuario (perfil, prospectos, mensajes, eventos) se leen y escriben solo a través de `lib/server/repository.ts`, que filtra siempre por `userId`.
 - `import "server-only"` en `marketing-agent.ts` hace fallar el build si ese módulo se importara desde un Client Component — es la barrera que garantiza que la API key nunca llega al navegador.
 - No mezclar lógica de UI, Route Handler y Agent/dominio en un mismo archivo.
 - No mover lógica entre capas sin una razón arquitectónica clara.

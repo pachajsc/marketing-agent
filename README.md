@@ -118,6 +118,20 @@ CRM, múltiples usuarios, billing, scraping de redes y analytics.
 Ninguna de las dos debe llevar el prefijo `NEXT_PUBLIC_`: se usan solo del
 lado del servidor.
 
+## Probar sin costo (modo demo)
+
+Con `AI_MODE=demo` en `.env.local`, la app no llama a Claude ni a Google
+Places: usa respuestas reales ya grabadas (estrategia, 20 prospectos y mensajes
+del caso pádel en Buenos Aires) guardadas en `data/demo/fixture.json`, que no
+se sube a git. Sirve para probar la interfaz, el flujo, los estados y la
+revisión de mensajes gratis. Una franja visible avisa en todas las pantallas
+que son datos de ejemplo. Para prospectos sin un mensaje grabado se arma un
+borrador mínimo solo con hechos (nombre del negocio y lo que vendés), que pasa
+por la misma validación de factualidad.
+
+Para usar la IA real, sacá la línea `AI_MODE=demo` de `.env.local` y reiniciá
+el servidor (hace falta crédito en la cuenta de Anthropic).
+
 ## Cómo correrlo
 
 ```bash

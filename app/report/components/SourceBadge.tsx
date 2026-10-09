@@ -17,9 +17,10 @@ const CONFIDENCE_LABEL: Record<Confidence, string> = {
 };
 
 const BADGE_STYLE: Record<ClaimSource, string> = {
-  fact: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-  inference: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
-  assumption: "bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300",
+  // Leyenda de la guía: hecho en tinta, inferencia en agua, supuesto sobre amarillo de tapa.
+  fact: "bg-tinta/[0.07] text-tinta",
+  inference: "bg-agua/10 text-agua",
+  assumption: "bg-tapa/45 text-tinta",
 };
 
 /** Badge de procedencia (Hecho / Inferencia / Supuesto). */
@@ -41,7 +42,7 @@ export function SourceBadgeRow({ source, confidence }: { source: ClaimSource; co
     <div className="mb-1.5 flex flex-wrap items-center gap-2">
       <SourceBadge source={source} />
       {confidence && (
-        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+        <span className="text-xs text-grafito">
           Confianza: {CONFIDENCE_LABEL[confidence]}
         </span>
       )}

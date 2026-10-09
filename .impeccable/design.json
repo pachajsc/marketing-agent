@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-08T00:00:00.000Z",
+  "title": "Design System: AI Marketing Agent",
+  "extensions": {
+    "colorMeta": {
+      "tapa": { "role": "primary", "displayName": "Amarillo de tapa" },
+      "tinta": { "role": "neutral", "displayName": "Tinta" },
+      "plano": { "role": "neutral", "displayName": "Papel de plano" },
+      "agua": { "role": "secondary", "displayName": "Agua" },
+      "plaza": { "role": "secondary", "displayName": "Plaza" },
+      "avenida": { "role": "secondary", "displayName": "Avenida" }
+    },
+    "shadows": [
+      { "name": "hoja-flotante", "value": "0 10px 30px -18px rgba(20,20,20,0.45)", "purpose": "Tarjeta de login y panel de filtros." }
+    ],
+    "motion": [
+      { "name": "entrada", "value": "420ms cubic-bezier(0.16,1,0.3,1), 45ms de escalonado", "purpose": "Entradas del índice al cargar." },
+      { "name": "sello", "value": "380ms cubic-bezier(0.16,1,0.3,1)", "purpose": "Sello de contactado." }
+    ],
+    "breakpoints": [ { "name": "sm", "value": "640px" }, { "name": "lg", "value": "1024px" } ]
+  },
+  "components": [
+    { "name": "Botón principal", "kind": "button", "refersTo": "button-primary", "description": "Acción principal: tinta sobre cualquier fondo, incluida la tapa.", "html": "<button class=\"ds-btn-primary\">Buscar prospectos</button>", "css": ".ds-btn-primary{background:#141414;color:#fff;border:0;border-radius:6px;min-height:44px;padding:8px 16px;font:600 14px Archivo,system-ui,sans-serif;cursor:pointer;transition:background-color .15s}.ds-btn-primary:hover{background:#000}.ds-btn-primary:focus-visible{outline:2px solid #141414;outline-offset:2px;box-shadow:0 0 0 5px #f2c12e}" },
+    { "name": "Botón secundario", "kind": "button", "refersTo": "button-secondary", "description": "Acción secundaria con borde de tinta.", "html": "<button class=\"ds-btn-secondary\">Ver en Google Maps</button>", "css": ".ds-btn-secondary{background:#fff;color:#141414;border:1px solid #141414;border-radius:6px;min-height:44px;padding:8px 16px;font:600 14px Archivo,system-ui,sans-serif;cursor:pointer}.ds-btn-secondary:hover{background:#f4f6f3}" },
+    { "name": "Placa", "kind": "custom", "refersTo": "placa", "description": "Número de orden del índice.", "html": "<span class=\"ds-placa\">1</span>", "css": ".ds-placa{display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;padding:0 6px;background:#141414;color:#f2c12e;border-radius:3px;font:800 16px Archivo,system-ui,sans-serif;font-stretch:75%;font-variant-numeric:tabular-nums}" },
+    { "name": "Tapa", "kind": "custom", "refersTo": "tapa", "description": "Cabecera amarilla de cada pantalla.", "html": "<header class=\"ds-tapa\"><h1>Prospectos</h1><p>Clubes de pádel en Buenos Aires · 20 en el índice</p></header>", "css": ".ds-tapa{background:#f2c12e;border-bottom:2px solid #141414;padding:20px 16px;color:#141414;font-family:Archivo,system-ui,sans-serif}.ds-tapa h1{margin:0;font-weight:800;font-size:1.85rem;line-height:1.02;font-stretch:75%}.ds-tapa p{margin:6px 0 0;font-size:14px;font-weight:500}" },
+    { "name": "Campo de texto", "kind": "input", "refersTo": "input", "description": "Input sobre hoja blanca.", "html": "<input class=\"ds-input\" placeholder=\"Buscar por nombre\">", "css": ".ds-input{background:#fff;color:#141414;border:1px solid #d8ddd6;border-radius:6px;padding:10px 12px;font:400 14px Archivo,system-ui,sans-serif}.ds-input::placeholder{color:#697068}.ds-input:focus-visible{outline:2px solid #141414;outline-offset:2px;box-shadow:0 0 0 5px #f2c12e;border-color:#141414}" }
+  ],
+  "narrative": {
+    "northStar": "Guía de calles",
+    "keyCharacteristics": ["Tapa amarilla con filete de tinta como cabecera de cada pantalla.", "Prospectos como entradas de índice con placa negra numerada.", "Estados legibles por relleno, no solo por color.", "Navegación abajo en el celular; lomo negro en escritorio.", "Una sola familia tipográfica con eje de ancho."],
+    "rules": [
+      { "name": "The One Role Rule", "body": "Cada color del plano tiene un solo significado: agua es enlace o respuesta, plaza es aprobado, avenida es error o descarte. No se usan como decoración.", "section": "colors" },
+      { "name": "The Tapa Is a Field Rule", "body": "El amarillo ocupa campos enteros (la tapa, la pestaña activa), nunca acentos sueltos sobre el papel.", "section": "colors" },
+      { "name": "The Tabular Rule", "body": "Toda cifra (score, reseñas, conteos, número de orden) usa cifras tabulares: las columnas no bailan.", "section": "typography" },
+      { "name": "The Index Voice Rule", "body": "El ancho condensado se reserva para nombres, placas y títulos; los párrafos nunca van condensados.", "section": "typography" },
+      { "name": "The Flat Sheet Rule", "body": "Las hojas apoyadas no llevan sombra: borde de renglón o sombra, nunca ambos.", "section": "elevation" }
+    ]
+  }
+}

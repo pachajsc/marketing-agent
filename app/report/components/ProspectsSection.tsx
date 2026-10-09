@@ -19,6 +19,15 @@ import {
   type WorkspaceAction,
   type WorkspaceState,
 } from "@/lib/workspace/prospect-workspace";
+import {
+  DEFAULT_RADIUS_KM,
+  LOCATION_NOTE_MESSAGE,
+  MAX_RADIUS_KM,
+  MIN_RADIUS_KM,
+  clampRadiusKm,
+  readProximity,
+  type LocationNote,
+} from "@/lib/geolocation";
 import { SalesMessagePanel } from "./SalesMessagePanel";
 import { SourceBadge } from "./SourceBadge";
 
@@ -62,39 +71,6 @@ const PRIMARY_BUTTON =
 const LINK_BUTTON =
   "text-xs font-medium text-zinc-600 underline hover:text-black dark:text-zinc-400 dark:hover:text-white";
 
-// Límites del radio de búsqueda: mismo tope que SearchProximitySchema
-// (lib/tools/search-prospects-types.ts) — el límite real del radio de
-// locationBias.circle en la API de Google (50 km).
-const MIN_RADIUS_KM = 1;
-const MAX_RADIUS_KM = 50;
-const DEFAULT_RADIUS_KM = 10;
-
-type LocationNote = null | "unsupported" | "denied" | "unavailable";
-
-const LOCATION_NOTE_MESSAGE: Record<Exclude<LocationNote, null>, string> = {
-  unsupported: "Tu navegador no permite compartir tu ubicación: buscamos solo por la zona del cuestionario.",
-  denied: "No compartiste tu ubicación: buscamos solo por la zona del cuestionario.",
-  unavailable: "No pudimos obtener tu ubicación: buscamos solo por la zona del cuestionario.",
-};
-
-/** Sentinel — no hay un tipo de error nativo para "este navegador no tiene Geolocation API". */
-class GeolocationUnsupportedError extends Error {}
-
-/** Promesa sobre la Geolocation API. Rechaza con el GeolocationPositionError real (para distinguir permiso denegado de otras fallas) o con GeolocationUnsupportedError si la API no existe. */
-function getCurrentPosition(): Promise<GeolocationPosition> {
-  return new Promise((resolve, reject) => {
-    if (!("geolocation" in navigator)) {
-      reject(new GeolocationUnsupportedError());
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: false,
-      timeout: 8_000,
-      maximumAge: 5 * 60_000,
-    });
-  });
-}
-
 export function ProspectsSection({ answers, strategy }: ProspectsSectionProps) {
   const [state, setState] = useState<ProspectsState>({ status: "idle" });
   const [workspace, dispatch] = useReducer(workspaceReducer, initialWorkspaceState);
@@ -111,23 +87,9 @@ export function ProspectsSection({ answers, strategy }: ProspectsSectionProps) {
     dispatch({ type: "reset" });
     setState({ status: "loading" });
 
-    // La ubicación es un refinamiento, no un requisito: si el navegador no
-    // la soporta, el usuario la niega, o falla por cualquier otro motivo, la
-    // búsqueda sigue funcionando igual que siempre (solo por categoría+zona).
-    let proximity: { lat: number; lng: number; radiusKm: number } | undefined;
-    try {
-      const position = await getCurrentPosition();
-      proximity = { lat: position.coords.latitude, lng: position.coords.longitude, radiusKm };
-      setLocationNote(null);
-    } catch (error) {
-      if (error instanceof GeolocationUnsupportedError) {
-        setLocationNote("unsupported");
-      } else if (error instanceof GeolocationPositionError && error.code === error.PERMISSION_DENIED) {
-        setLocationNote("denied");
-      } else {
-        setLocationNote("unavailable");
-      }
-    }
+    // La ubicación es un refinamiento opcional (ver lib/geolocation.ts).
+    const { proximity, note } = await readProximity(radiusKm);
+    setLocationNote(note);
 
     try {
       const response = await fetch("/api/prospects", {
@@ -179,7 +141,7 @@ export function ProspectsSection({ answers, strategy }: ProspectsSectionProps) {
                   onChange={(event) => {
                     const value = Number(event.target.value);
                     if (Number.isNaN(value)) return;
-                    setRadiusKm(Math.min(Math.max(value, MIN_RADIUS_KM), MAX_RADIUS_KM));
+                    setRadiusKm(clampRadiusKm(value));
                   }}
                   className="w-16 rounded border border-zinc-300 bg-white px-2 py-1 text-center text-sm text-black dark:border-zinc-700 dark:bg-zinc-900 dark:text-white"
                 />

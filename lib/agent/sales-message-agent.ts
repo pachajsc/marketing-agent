@@ -28,6 +28,7 @@ import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { demoDelay, isDemoMode, loadDemoFixture } from "@/lib/demo/demo-mode";
 import {
   SalesMessageDraftSchema,
   SalesMessageSchema,
@@ -336,6 +337,8 @@ export async function runSalesMessageAgent(
 ): Promise<SalesMessage> {
   const context = buildSalesMessageContext(prospect, answers, strategy);
 
+  if (isDemoMode()) return demoSalesMessage(prospect, answers, context);
+
   const response = await client.messages.parse({
     model: MODEL,
     max_tokens: 1024,
@@ -353,7 +356,11 @@ export async function runSalesMessageAgent(
     ]);
   }
 
-  const draft = response.parsed_output;
+  return toSalesMessage(response.parsed_output, prospect, context);
+}
+
+/** Valida un borrador (de Claude o del modo demo) y arma el SalesMessage final. */
+function toSalesMessage(draft: SalesMessageDraft, prospect: QualifiedProspect, context: SalesMessageContext): SalesMessage {
   const violations = validateSalesMessageDraft(draft, context);
   if (violations.length > 0) throw new SalesMessageValidationError(violations);
 
@@ -370,4 +377,37 @@ export async function runSalesMessageAgent(
     })),
     unknowns: context.unknowns,
   });
+}
+
+/**
+ * Borrador mínimo para el modo demo cuando no hay un mensaje grabado para ese
+ * prospecto: solo hechos (nombre del negocio y lo que vende el usuario), sin
+ * llamar a Claude. Pasa por la misma validación que un mensaje real.
+ */
+export function demoTemplateDraft(prospect: QualifiedProspect, answers: QuestionnaireAnswers): SalesMessageDraft {
+  const offering = answers.offering.trim();
+  const offeringText = offering.charAt(0).toLowerCase() + offering.slice(1);
+  const cta = "¿Les muestro cómo funciona?";
+  return {
+    message: `Hola, ¿cómo andan? Les escribo por ${prospect.name}. Trabajo en ${offeringText}. ${cta}`,
+    cta,
+    claims: [
+      { quote: `Les escribo por ${prospect.name}`, about: "prospect", basedOn: ["prospect.name"] },
+      { quote: offeringText, about: "offering", basedOn: ["answers.offering"] },
+    ],
+  };
+}
+
+/** Modo demo: el mensaje grabado para ese prospecto si existe y sigue siendo válido; si no, el borrador mínimo. */
+async function demoSalesMessage(
+  prospect: QualifiedProspect,
+  answers: QuestionnaireAnswers,
+  context: SalesMessageContext
+): Promise<SalesMessage> {
+  await demoDelay();
+  const recorded = loadDemoFixture().messages[prospect.mapsUrl];
+  if (recorded && validateSalesMessageDraft(recorded, context).length === 0) {
+    return toSalesMessage(recorded, prospect, context);
+  }
+  return toSalesMessage(demoTemplateDraft(prospect, answers), prospect, context);
 }
